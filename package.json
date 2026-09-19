@@ -1,0 +1,44 @@
+{
+  "name": "skillgap-ai-next",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "next dev --hostname 0.0.0.0 --port 3001",
+    "build": "next build",
+    "start": "next start --hostname 0.0.0.0 --port 3001",
+    "lint": "next lint",
+    "dev:vite": "vite --host 0.0.0.0 --port 3000",
+    "build:vite": "vite build",
+    "preview:vite": "vite preview --host 0.0.0.0 --port 4173",
+    "typecheck:vite": "tsc -p tsconfig.app.json --noEmit",
+    "biome:check": "biome check src vite.config.ts",
+    "biome:format": "biome format --write src vite.config.ts",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "quality:gate": "npm run typecheck:vite && npm run biome:check && npm run test:coverage && npm run build:vite",
+    "benchmark:vite": "node scripts/benchmark-vite.mjs"
+  },
+  "dependencies": {
+    "@tailwindcss/postcss": "^4.1.13",
+    "@tanstack/react-query": "^5.102.8",
+    "class-variance-authority": "^0.7.1",
+    "next": "^16.3.5",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "zod": "^3.25.0",
+    "zustand": "^5.0.15"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.2.0",
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.1.13",
+    "@types/react-dom": "^19.1.9",
+    "@vitest/coverage-v8": "^5.0.1",
+    "autoprefixer": "^10.6.0",
+    "postcss": "^8.5.28",
+    "tailwindcss": "^4.1.13",
+    "typescript": "^5.7.2",
+    "vite": "^7.1.5",
+    "vitest": "^5.0.1"
+  }
+}

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>State Separation Matrix | SkillGap.AI</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+      body { background: linear-gradient(180deg, #f8fafc 0%, #eef4ff 100%); }
+      @media print { body { background: white; } .no-print { display: none !important; } }
+    </style>
+  </head>
+  <body class="min-h-screen text-slate-800 antialiased">
+    <header class="no-print border-b border-slate-200 bg-white/80 backdrop-blur-xl">
+      <div class="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+        <div>
+          <p class="text-sm font-bold uppercase tracking-[0.22em] text-indigo-600">Matrix Analysis</p>
+          <h1 class="mt-2 text-2xl font-black text-slate-900">Pemisahan Client UI State vs Server State</h1>
+        </div>
+        <button type="button" onclick="window.print()" class="rounded-xl bg-gradient-to-r from-indigo-600 to-sky-500 px-4 py-2 text-sm font-semibold text-white shadow-soft">Cetak PDF</button>
+      </div>
+    </header>
+
+    <main class="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+      <section class="rounded-[28px] border border-slate-200 bg-white p-8 shadow-soft">
+        <p class="text-sm font-bold uppercase tracking-[0.22em] text-indigo-600">Laporan</p>
+        <h2 class="mt-3 text-3xl font-black text-slate-900">Matriks analisis pemisahan state</h2>
+        <p class="mt-4 text-slate-600">
+          Dokumen ini memetakan seluruh variabel state ke kategori Client UI State dan Server State. Pendekatan ini menjaga UI interaktif tetap responsif, sementara data API dikelola dengan cache dan invalidasi query agar konsisten.
+        </p>
+      </section>
+
+      <section class="mt-8 overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-soft">
+        <div class="overflow-x-auto">
+          <table class="min-w-full text-left text-sm text-slate-600">
+            <thead class="bg-slate-50 text-slate-800">
+              <tr>
+                <th class="px-5 py-4 font-semibold">Variabel State</th>
+                <th class="px-5 py-4 font-semibold">Kategori</th>
+                <th class="px-5 py-4 font-semibold">Teknologi</th>
+                <th class="px-5 py-4 font-semibold">Alasan</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200">
+              <tr>
+                <td class="px-5 py-4 font-medium text-slate-900">activeModal</td>
+                <td class="px-5 py-4">Client UI State</td>
+                <td class="px-5 py-4">Zustand</td>
+                <td class="px-5 py-4">Status modal hanya berlaku pada sisi antarmuka dan tidak perlu dipersisten ke server.</td>
+              </tr>
+              <tr>
+                <td class="px-5 py-4 font-medium text-slate-900">activeTab</td>
+                <td class="px-5 py-4">Client UI State</td>
+                <td class="px-5 py-4">Zustand</td>
+                <td class="px-5 py-4">Tab aktif mengubah tampilan UI lokal tanpa memerlukan fetch backend.</td>
+              </tr>
+              <tr>
+                <td class="px-5 py-4 font-medium text-slate-900">theme</td>
+                <td class="px-5 py-4">Client UI State</td>
+                <td class="px-5 py-4">Zustand</td>
+                <td class="px-5 py-4">Tema antarmuka adalah konfigurasi UI yang berubah cepat dan bersifat lokal.</td>
+              </tr>
+              <tr>
+                <td class="px-5 py-4 font-medium text-slate-900">draftStep</td>
+                <td class="px-5 py-4">Client UI State</td>
+                <td class="px-5 py-4">Zustand</td>
+                <td class="px-5 py-4">Langkah draft form hanya relevan untuk alur pengerjaan UI sebelum kirim ke server.</td>
+              </tr>
+              <tr>
+                <td class="px-5 py-4 font-medium text-slate-900">assessment list</td>
+                <td class="px-5 py-4">Server State</td>
+                <td class="px-5 py-4">TanStack Query</td>
+                <td class="px-5 py-4">Data berasal dari REST API dan perlu cache, stale time, serta invalidation saat mutasi berlangsung.</td>
+              </tr>
+              <tr>
+                <td class="px-5 py-4 font-medium text-slate-900">course catalog</td>
+                <td class="px-5 py-4">Server State</td>
+                <td class="px-5 py-4">TanStack Query</td>
+                <td class="px-5 py-4">Data katalog relatif stabil, cocok dengan staleTime lebih lama dan cache yang dipertahankan.</td>
+              </tr>
+              <tr>
+                <td class="px-5 py-4 font-medium text-slate-900">create/update/delete assessment</td>
+                <td class="px-5 py-4">Mutation State</td>
+                <td class="px-5 py-4">TanStack Query</td>
+                <td class="px-5 py-4">Perubahan data harus mengubah server state lalu memicu invalidasi cache agar UI otomatis diperbarui.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

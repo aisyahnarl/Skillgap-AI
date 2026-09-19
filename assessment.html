@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Assessment | SkillGap.AI</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+      body {
+        background: linear-gradient(135deg, #f8fafc 0%, #eef4ff 100%);
+      }
+      .shadow-soft { box-shadow: 0 20px 45px rgba(15, 23, 42, 0.08); }
+    </style>
+  </head>
+  <body class="min-h-screen text-slate-800 antialiased">
+    <div aria-live="polite" aria-atomic="true" id="toast" class="pointer-events-none fixed right-5 top-5 z-50 hidden rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-medium text-emerald-700 shadow-soft"></div>
+
+    <header class="border-b border-slate-200 bg-white/80 backdrop-blur-xl">
+      <div class="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+        <div class="flex items-center gap-3">
+          <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-600 to-sky-500 text-lg font-black text-white shadow-soft">S</span>
+          <div>
+            <p class="text-lg font-black text-slate-900">SkillGap.AI</p>
+            <p class="text-xs text-slate-500">AI Assessment Flow</p>
+          </div>
+        </div>
+
+        <nav class="hidden items-center gap-6 text-sm text-slate-600 md:flex" aria-label="Navigasi penilaian">
+          <a href="dashboard.html" class="transition hover:text-indigo-600">Dashboard</a>
+          <a href="list.html" class="transition hover:text-indigo-600">List Data</a>
+          <a href="docs/srs-matrix.html" class="transition hover:text-indigo-600">SRS Matrix</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
+      <section class="mb-8 rounded-[28px] border border-slate-200 bg-white p-6 shadow-soft">
+        <p class="text-sm font-bold uppercase tracking-[0.22em] text-indigo-600">Create / Input Data</p>
+        <h1 class="mt-3 text-4xl font-black tracking-tight text-slate-900">AI Assessment Form</h1>
+        <p class="mt-3 max-w-2xl text-slate-600">Kumpulkan profil pengguna, minat, dan penguatan skill untuk menghasilkan rekomendasi yang lebih personal.</p>
+      </section>
+
+      <form id="assessmentForm" class="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]" novalidate>
+        <article class="rounded-[28px] border border-slate-200 bg-white p-6 shadow-soft">
+          <div class="grid gap-5 md:grid-cols-2">
+            <div>
+              <label for="userName" class="mb-2 block text-sm font-medium text-slate-700">Nama</label>
+              <input id="userName" name="userName" type="text" required class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none" placeholder="Nama lengkap" aria-label="Nama lengkap" />
+            </div>
+
+            <div>
+              <label for="userRole" class="mb-2 block text-sm font-medium text-slate-700">Kategori</label>
+              <select id="userRole" name="userRole" required class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 focus:border-indigo-400 focus:outline-none" aria-label="Pilih kategori">
+                <option value="">Pilih</option>
+                <option value="Mahasiswa">Mahasiswa</option>
+                <option value="Siswa">Pelajar SMA/SMK</option>
+                <option value="Dosen">Dosen</option>
+                <option value="Guru BK">Guru BK</option>
+              </select>
+            </div>
+
+            <div class="md:col-span-2">
+              <label for="targetTrack" class="mb-2 block text-sm font-medium text-slate-700">Target jalur</label>
+              <input id="targetTrack" name="targetTrack" type="text" required class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none" placeholder="Contoh: Data Science, UI/UX, Web Development" aria-label="Target jalur" />
+            </div>
+
+            <div class="md:col-span-2">
+              <label for="portfolio" class="mb-2 block text-sm font-medium text-slate-700">CV / Portofolio / Link profil</label>
+              <input id="portfolio" name="portfolio" type="url" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none" placeholder="https://example.com" aria-label="CV atau portofolio" />
+            </div>
+
+            <div class="md:col-span-2">
+              <label for="strengths" class="mb-2 block text-sm font-medium text-slate-700">Kekuatan utama</label>
+              <textarea id="strengths" name="strengths" rows="4" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none" placeholder="Ceritakan kemampuan, passion, atau pengalaman yang paling menonjol..." aria-label="Kekuatan utama"></textarea>
+            </div>
+
+            <div class="md:col-span-2">
+              <label class="mb-2 block text-sm font-medium text-slate-700">Pilih kompetensi minat</label>
+              <div class="flex flex-wrap gap-2" id="skillChips" aria-label="Pilihan kompetensi minat">
+                <button type="button" data-skill-chip class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-700 transition hover:border-indigo-200 hover:text-indigo-600">Data Science</button>
+                <button type="button" data-skill-chip class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-700 transition hover:border-indigo-200 hover:text-indigo-600">UI/UX</button>
+                <button type="button" data-skill-chip class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-700 transition hover:border-indigo-200 hover:text-indigo-600">Web Dev</button>
+                <button type="button" data-skill-chip class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-700 transition hover:border-indigo-200 hover:text-indigo-600">Marketing</button>
+                <button type="button" data-skill-chip class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-700 transition hover:border-indigo-200 hover:text-indigo-600">Product</button>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <aside class="space-y-6">
+          <div class="rounded-[28px] border border-slate-200 bg-white p-6 shadow-soft">
+            <p class="text-sm text-slate-500">Ringkasan submit</p>
+            <div id="assessmentSummary" class="mt-4 space-y-3 text-sm text-slate-600">
+              <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">Belum ada profil yang dipilih.</div>
+            </div>
+          </div>
+
+          <div class="rounded-[28px] border border-slate-200 bg-white p-6 shadow-soft">
+            <p class="text-sm text-slate-500">AI recommendation</p>
+            <div class="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+              <p class="text-2xl font-black text-slate-900">87%</p>
+              <p class="mt-2 text-sm text-emerald-700">Kecocokan dengan jalur prioritas yang direkomendasikan.</p>
+            </div>
+          </div>
+
+          <button type="submit" class="inline-flex w-full items-center justify-center rounded-2xl bg-gradient-to-r from-indigo-600 to-sky-500 px-4 py-3.5 text-sm font-semibold text-white shadow-soft transition hover:brightness-105">Proses assessment</button>
+        </aside>
+      </form>
+    </main>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,8 @@
+{
+  "users": [
+    { "name": "Ayu Lestari", "category": "Mahasiswa", "target": "Data Science", "match": "89%", "status": "valid" },
+    { "name": "Rizky Putra", "category": "Siswa", "target": "UI/UX", "match": "82%", "status": "review" },
+    { "name": "Nadya Sari", "category": "Mahasiswa", "target": "Web Development", "match": "91%", "status": "valid" },
+    { "name": "Farhan", "category": "Siswa", "target": "Product Management", "match": "75%", "status": "pending" }
+  ]
+}
