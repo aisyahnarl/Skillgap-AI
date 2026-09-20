@@ -402,7 +402,7 @@ describe('Study Path & Competency Data Layer (Bab 12 BFF & CRUD)', () => {
         sumber: 'Riset 2026',
       },
     ]);
-    expect(batch.length).toBe(1);
+    expect(batch).toHaveLength(1);
 
     deleteCompetency(created.id);
     deleteCompetency(batch[0]!.id);
@@ -469,7 +469,7 @@ describe('Task Chunking & scheduler.yield() (Bab 10 Core Web Vitals INP)', () =>
     const data = Array.from({ length: 50 }, (_, i) => i + 1);
     const processed = await processInChunks(data, 10, (num) => num * 2);
 
-    expect(processed.length).toBe(50);
+    expect(processed).toHaveLength(50);
     expect(processed[0]).toBe(2);
     expect(processed[49]).toBe(100);
   });

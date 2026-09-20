@@ -22,7 +22,7 @@ jobs:
           cache: npm
 
       - name: Install Dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Run Quality Gate
         run: npm run quality:gate
@@ -37,9 +37,7 @@ jobs:
           path: coverage/
 
       - name: SonarQube Cloud Static Analysis Scan
-        if: ${{ secrets.SONAR_TOKEN != '' }}
         uses: SonarSource/sonarqube-scan-action@v5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL != '' && secrets.SONAR_HOST_URL || 'https://sonarcloud.io' }}
