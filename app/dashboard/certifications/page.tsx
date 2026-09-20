@@ -252,7 +252,7 @@ export default function CertificationsPage() {
                   <a
                     href={selected.officialUrl}
                     target="_blank"
-                    rel="noreferrer"
+                    rel="noopener noreferrer"
                     className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-sky-500 px-4 py-3 text-xs font-bold text-white shadow-soft hover:opacity-95 transition"
                   >
                     Kunjungi Laman Resmi Ujian / Kursus ↗

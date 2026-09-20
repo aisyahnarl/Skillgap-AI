@@ -100,7 +100,7 @@ export function CertificationCard({
             <a
               href={officialUrl}
               target="_blank"
-              rel="noreferrer"
+              rel="noopener noreferrer"
               className="text-xs font-medium text-slate-500 hover:text-slate-800 underline"
             >
               Info Resmi

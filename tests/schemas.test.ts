@@ -64,6 +64,82 @@ describe('assessment schemas', () => {
   });
 });
 
+describe('src/schemas branded types and validation (Bab 5 Strict TypeScript)', async () => {
+  const {
+    loginSchema,
+    registerSchema,
+    assessmentSchema,
+    certificateSchema,
+    studentSchema,
+    orderSchema,
+    apiResponseSchema,
+    brandIds,
+  } = await import('../src/schemas');
+
+  it('validates login schema correctly', () => {
+    expect(loginSchema.safeParse({ email: 'user@test.com', password: 'password123', remember: true }).success).toBe(true);
+    expect(loginSchema.safeParse({ email: 'invalid-email', password: 'short' }).success).toBe(false);
+  });
+
+  it('validates register schema with role enum', () => {
+    expect(registerSchema.safeParse({ fullName: 'John Doe', role: 'Mahasiswa', email: 'john@test.com', password: 'password123' }).success).toBe(true);
+    expect(registerSchema.safeParse({ fullName: 'J', role: 'InvalidRole', email: 'not-an-email', password: '123' }).success).toBe(false);
+  });
+
+  it('validates assessment schema inputs', () => {
+    expect(assessmentSchema.safeParse({
+      fullName: 'Ayu Lestari',
+      email: 'ayu@test.com',
+      interest: 'AI Engineering',
+      goals: 'Menjadi AI Engineer profesional dalam 2 tahun',
+      experience: 'Memiliki pengalaman proyek Python dan PyTorch dasar',
+    }).success).toBe(true);
+    expect(assessmentSchema.safeParse({ fullName: 'A', email: 'bad', interest: 'x', goals: 'short', experience: 'short' }).success).toBe(false);
+  });
+
+  it('validates branded IDs and certificateSchema', () => {
+    const validCert = {
+      id: brandIds.productId.parse('cert-101'),
+      name: 'Google Data Analytics',
+      issuer: 'Google',
+      category: 'Data',
+      level: 'Foundation',
+      badgeColor: '#4f46e5',
+    };
+    expect(certificateSchema.safeParse(validCert).success).toBe(true);
+  });
+
+  it('validates studentSchema with matchScore range', () => {
+    const validStudent = {
+      id: brandIds.studentId.parse('stu-1'),
+      name: 'Nadia Amalia',
+      email: 'nadia@email.com',
+      role: 'Mahasiswa',
+      program: 'Teknik Informatika',
+      matchScore: 88,
+      status: 'Valid',
+    };
+    expect(studentSchema.safeParse(validStudent).success).toBe(true);
+    expect(studentSchema.safeParse({ ...validStudent, matchScore: 150 }).success).toBe(false);
+  });
+
+  it('validates orderSchema and generic apiResponseSchema', () => {
+    const validOrder = {
+      id: brandIds.orderId.parse('ord-1'),
+      studentId: brandIds.studentId.parse('stu-1'),
+      certificateId: brandIds.productId.parse('cert-1'),
+      purchaseDate: new Date().toISOString(),
+      amount: 150000,
+      status: 'Paid',
+    };
+    expect(orderSchema.safeParse(validOrder).success).toBe(true);
+
+    const wrappedSchema = apiResponseSchema(orderSchema);
+    expect(wrappedSchema.safeParse({ success: true, data: validOrder }).success).toBe(true);
+    expect(wrappedSchema.safeParse({ success: false, data: null }).success).toBe(false);
+  });
+});
+
 describe('assessment BFF route', () => {
   it('rejects requests without a session', () => {
     const response = GET(new Request('http://localhost/api/assessments'));

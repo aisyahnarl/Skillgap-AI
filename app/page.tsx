@@ -83,6 +83,9 @@ export default function HomePage() {
               <img
                 src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=1200&q=80"
                 alt="Mahasiswa berdiskusi"
+                width={1200}
+                height={420}
+                fetchPriority="high"
                 className="h-[420px] w-full rounded-[24px] object-cover"
               />
               <div className="absolute bottom-8 left-8 right-8 rounded-[24px] border border-white/40 bg-white/80 p-4 backdrop-blur-md">
@@ -136,6 +139,9 @@ export default function HomePage() {
             <img
               src="https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&w=900&q=80"
               alt="Tim bekerja"
+              width={900}
+              height={600}
+              loading="lazy"
               className="h-full w-full object-cover"
             />
           </div>

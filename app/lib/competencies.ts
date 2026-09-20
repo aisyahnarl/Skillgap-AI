@@ -174,21 +174,31 @@ export function listCompetencies() {
   return store.competencies;
 }
 
-export function createCompetency(input: CompetencyInput) {
-  const competency = competencySchema.parse({ ...input, id: `comp-${crypto.randomUUID()}` });
+export function createCompetency(input: unknown) {
+  const parsed = competencyInputSchema.parse(input);
+  const competency = competencySchema.parse({ ...parsed, id: `comp-${crypto.randomUUID()}` });
   store.competencies.push(competency);
   return competency;
 }
 
-export function createCompetencies(inputs: CompetencyInput[]) {
+export function createCompetencies(inputs: unknown[]) {
   return inputs.map((input) => createCompetency(input));
 }
 
-export function updateCompetency(id: string, input: CompetencyInput) {
+export function updateCompetency(id: string, input: unknown) {
   const index = store.competencies.findIndex((item) => item.id === id);
   if (index === -1) return null;
   const current = store.competencies[index];
-  const competency = competencySchema.parse({ ...input, id, created_at: current?.created_at ?? new Date().toISOString(), updated_at: new Date().toISOString() });
+  const parsed = competencyInputSchema.parse({
+    ...current,
+    ...(typeof input === 'object' && input !== null ? input : {}),
+  });
+  const competency = competencySchema.parse({
+    ...parsed,
+    id,
+    created_at: current?.created_at ?? new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  });
   store.competencies[index] = competency;
   return competency;
 }
