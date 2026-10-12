@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { authService, type UserRole } from '../services/auth-service';
+import { type UserRole } from '../services/auth-service'; // Anda bisa memindahkan type ini jika perlu, atau biarkan di sini
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -17,6 +17,7 @@ export default function RegisterPage() {
   });
   const [parentalConsent, setParentalConsent] = useState(false);
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false); // Tambahan state loading agar lebih baik saat menunggu respons
 
   const isPelajar = form.role === 'Pelajar' || form.jenjang === 'Pelajar SMA-SMK Sederajat';
   const age = form.birthDate
@@ -24,7 +25,7 @@ export default function RegisterPage() {
     : undefined;
   const isUnder18 = isPelajar && (age !== undefined ? age < 18 : true);
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!form.name || !form.email || !form.password) {
@@ -42,24 +43,42 @@ export default function RegisterPage() {
       return;
     }
 
-    const res = authService.createUser({
-      name: form.name,
-      email: form.email.toLowerCase(),
-      password: form.password,
-      role: form.role,
-      jenjang: form.jenjang,
-      birthDate: form.birthDate || undefined,
-      age: age,
-      parentalConsent: isUnder18 ? parentalConsent : undefined,
-    });
-
-    if (!res.success) {
-      setError(res.message || 'Pendaftaran gagal.');
-      return;
-    }
-
+    setIsLoading(true);
     setError('');
-    router.push('/login?registered=1');
+
+    try {
+      // PERUBAHAN: Memanggil API Route (/api/register) menggunakan metode POST
+      const res = await fetch('http://127.0.0.1:8000/api/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: form.name,
+          email: form.email.toLowerCase(),
+          password: form.password,
+          role: form.role,
+          jenjang: form.jenjang,
+          birthDate: form.birthDate || undefined,
+          age: age,
+          parentalConsent: isUnder18 ? parentalConsent : undefined,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        // Jika status code bukan 200/201 (misal 400 atau 500)
+        throw new Error(data.error || data.message || 'Pendaftaran gagal.');
+      }
+
+      // Jika berhasil, arahkan pengguna ke halaman login
+      router.push('/login?registered=1');
+    } catch (err: any) {
+      setError(err.message || 'Terjadi kesalahan pada server. Coba lagi nanti.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -206,8 +225,12 @@ export default function RegisterPage() {
                 </div>
               )}
 
-              <button type="submit" className="inline-flex w-full items-center justify-center rounded-2xl bg-gradient-to-r from-indigo-600 to-sky-500 px-4 py-3.5 text-sm font-bold text-white shadow-soft hover:opacity-95 transition">
-                Daftar Sekarang
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="inline-flex w-full items-center justify-center rounded-2xl bg-gradient-to-r from-indigo-600 to-sky-500 px-4 py-3.5 text-sm font-bold text-white shadow-soft hover:opacity-95 transition disabled:opacity-70 disabled:cursor-not-allowed"
+              >
+                {isLoading ? 'Memproses...' : 'Daftar Sekarang'}
               </button>
             </form>
 

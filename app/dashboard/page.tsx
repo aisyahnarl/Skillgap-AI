@@ -28,6 +28,7 @@ export default function DashboardPage() {
   const [report, setReport] = useState<AssessmentReport>(defaultStudentReport);
   const [history, setHistory] = useState<AssessmentHistoryItem[]>([]);
   const [roadmapProgress, setRoadmapProgress] = useState(25);
+  const [backendData, setBackendData] = useState<any>(null); // State khusus FastAPI
 
   useEffect(() => {
     // 1. Load User
@@ -36,7 +37,7 @@ export default function DashboardPage() {
       setUser(currentUser);
     }
 
-    // 2. Load Assessment Report (Single source of truth)
+    // 2. Load Assessment Report
     const activeReport = assessmentService.getActiveReport();
     setReport(activeReport);
     setAssessmentLabel(`Assessment: ${activeReport.primarySkill}`);
@@ -60,6 +61,15 @@ export default function DashboardPage() {
     const phases = roadmapService.get();
     const progress = roadmapService.calculateOverallProgress(phases);
     setRoadmapProgress(progress);
+
+    // 6. Load Data dari FastAPI Backend
+    const loadBackendData = async () => {
+      const data = await authService.getDashboardStats();
+      if (data) {
+        setBackendData(data);
+      }
+    };
+    loadBackendData();
   }, []);
 
   const metrics = useMemo(
@@ -67,7 +77,7 @@ export default function DashboardPage() {
       { label: 'Skor Kecocokan', value: `${report.matchScore}%`, tone: 'bg-indigo-50 text-indigo-700' },
       { label: 'Kesenjangan Skill', value: `${report.skillGap}%`, tone: 'bg-amber-50 text-amber-700' },
       { label: 'Roadmap Belajar', value: `${roadmapProgress}% selesai`, tone: 'bg-emerald-50 text-emerald-700' },
-      { label: 'Sertifikasi', value: `${report.certifications.length} item`, tone: 'bg-sky-50 text-sky-700' },
+      { label: 'Sertifikasi', value: `${report?.certifications?.length || 0} item`, tone: 'bg-sky-50 text-sky-700' },
     ],
     [report, roadmapProgress],
   );
@@ -110,7 +120,6 @@ export default function DashboardPage() {
     router.push('/login');
   };
 
-  // Pelajar uses dedicated student dashboard (#18)
   if (user.role === 'Pelajar') {
     return <StudentView report={report} userName={user.name} />;
   }
@@ -118,7 +127,7 @@ export default function DashboardPage() {
   return (
     <main className="min-h-screen bg-slate-100 text-slate-800">
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        {/* Original Header with Unsplash Avatar & Greeting */}
+        {/* Header */}
         <header className="mb-8 rounded-[32px] border border-slate-200 bg-white p-6 shadow-soft">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-4">
@@ -133,7 +142,7 @@ export default function DashboardPage() {
                 </p>
                 <h1 className="text-3xl font-black text-slate-900">{user.name}</h1>
                 <p className="text-sm text-slate-500">
-                  {user.role} • Target Karier: <strong className="text-indigo-600 font-bold">{report.primarySkill}</strong> • {user.email}
+                  {user.role} • Target Karier: <strong className="text-indigo-600 font-bold">{report.primarySkill}</strong> | {user.email}
                 </p>
               </div>
             </div>
@@ -157,39 +166,48 @@ export default function DashboardPage() {
 
         {/* 4 Required Action CTAs */}
         <div className="mb-8 flex flex-wrap items-center gap-3">
-          <Link
-            href="/assessment"
-            className="rounded-full bg-gradient-to-r from-indigo-600 to-sky-500 px-5 py-2.5 text-xs font-bold text-white shadow-soft hover:opacity-95 transition"
-          >
+          <Link href="/assessment" className="rounded-full bg-gradient-to-r from-indigo-600 to-sky-500 px-5 py-2.5 text-xs font-bold text-white shadow-soft hover:opacity-95 transition">
             Ulangi Asesmen
           </Link>
-          <Link
-            href="/dashboard/skill-gap"
-            className="rounded-full border border-slate-200 bg-white px-5 py-2.5 text-xs font-bold text-slate-700 shadow-soft hover:bg-slate-50 transition"
-          >
+          <Link href="/dashboard/skill-gap" className="rounded-full border border-slate-200 bg-white px-5 py-2.5 text-xs font-bold text-slate-700 shadow-soft hover:bg-slate-50 transition">
             Lihat Kesenjangan Skill
           </Link>
-          <Link
-            href="/dashboard/roadmap"
-            className="rounded-full border border-indigo-200 bg-indigo-50 px-5 py-2.5 text-xs font-bold text-indigo-700 hover:bg-indigo-100 transition"
-          >
+          <Link href="/dashboard/roadmap" className="rounded-full border border-indigo-200 bg-indigo-50 px-5 py-2.5 text-xs font-bold text-indigo-700 hover:bg-indigo-100 transition">
             Lanjutkan Roadmap
           </Link>
-          <Link
-            href="/dashboard/certifications"
-            className="rounded-full border border-slate-200 bg-white px-5 py-2.5 text-xs font-bold text-slate-700 shadow-soft hover:bg-slate-50 transition"
-          >
+          <Link href="/dashboard/certifications" className="rounded-full border border-slate-200 bg-white px-5 py-2.5 text-xs font-bold text-slate-700 shadow-soft hover:bg-slate-50 transition">
             Eksplorasi Sertifikasi
           </Link>
-          <Link
-            href="/dashboard/jobs"
-            className="rounded-full border border-indigo-200 bg-indigo-50 px-5 py-2.5 text-xs font-bold text-indigo-700 hover:bg-indigo-100 transition shadow-2xs"
-          >
+          <Link href="/dashboard/jobs" className="rounded-full border border-indigo-200 bg-indigo-50 px-5 py-2.5 text-xs font-bold text-indigo-700 hover:bg-indigo-100 transition shadow-2xs">
             💼 Cari Lowongan Kerja
           </Link>
         </div>
 
-        {/* Original Ruang Kerja Section */}
+        {/* ======== BANNER BUKTI KONEKSI FASTAPI ======== */}
+        {backendData && (
+          <section className="mb-8 rounded-[28px] border border-emerald-200 bg-emerald-50/70 p-6 shadow-soft">
+            <p className="text-sm font-bold uppercase tracking-[0.2em] text-emerald-600">
+              ✅ Koneksi Backend Berhasil
+            </p>
+            <div className="mt-2 flex flex-col gap-4">
+              <div>
+                <h2 className="text-2xl font-black text-slate-900">{backendData.message}</h2>
+                <div className="flex gap-4 mt-4">
+                  <div className="rounded-xl border border-emerald-200 bg-white p-4 shadow-sm min-w-[140px]">
+                    <p className="text-xs font-bold uppercase tracking-wider text-emerald-600">Total Kursus (DB)</p>
+                    <p className="text-3xl font-black text-slate-900 mt-1">{backendData.stats.total_courses}</p>
+                  </div>
+                  <div className="rounded-xl border border-emerald-200 bg-white p-4 shadow-sm min-w-[140px]">
+                    <p className="text-xs font-bold uppercase tracking-wider text-emerald-600">Telah Selesai</p>
+                    <p className="text-3xl font-black text-slate-900 mt-1">{backendData.stats.completed}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Ruang Kerja Section */}
         <section className="mb-8 rounded-[28px] border border-indigo-100 bg-indigo-50/70 p-6">
           <p className="text-sm font-bold uppercase tracking-[0.2em] text-indigo-600">Ruang kerja {user.role}</p>
           <div className="mt-2 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
@@ -206,9 +224,9 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* 4 Original Metrics Grid */}
+        {/* Metrics Grid */}
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {metrics.map((item) => (
+          {metrics?.map((item) => (
             <article key={item.label} className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-soft">
               <div className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${item.tone}`}>{item.label}</div>
               <p className="mt-4 text-3xl font-black text-slate-900">{item.value}</p>
@@ -216,7 +234,7 @@ export default function DashboardPage() {
           ))}
         </section>
 
-        {/* Original Section: Peta Minat & Skill Gap + Aside */}
+        {/* Peta Minat & Skill Gap + Aside */}
         <section id="skill-gap" className="mt-8 grid scroll-mt-6 gap-6 xl:grid-cols-[1.2fr_0.8fr]">
           <article className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-soft">
             <div className="flex items-center justify-between">
@@ -240,16 +258,16 @@ export default function DashboardPage() {
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <h3 className="text-sm font-bold uppercase tracking-[0.2em] text-slate-600">Kekuatan Utama</h3>
                 <ul className="mt-3 space-y-2 text-sm text-slate-700">
-                  {report.strengths.map((item) => (
-                    <li key={item}>• {item}</li>
+                  {report?.strengths?.map((item) => (
+                    <li key={item}>{item}</li>
                   ))}
                 </ul>
               </div>
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <h3 className="text-sm font-bold uppercase tracking-[0.2em] text-slate-600">Gap yang perlu ditutup</h3>
                 <ul className="mt-3 space-y-2 text-sm text-slate-700">
-                  {report.gaps.map((item) => (
-                    <li key={item}>• {item}</li>
+                  {report?.gaps?.map((item) => (
+                    <li key={item}>{item}</li>
                   ))}
                 </ul>
               </div>
@@ -260,12 +278,11 @@ export default function DashboardPage() {
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">Rekomendasi</p>
             <h3 className="mt-3 text-2xl font-black text-slate-900">{report.primarySkill}</h3>
             <ul className="mt-4 space-y-3 text-sm text-slate-600">
-              {report.gaps.slice(0, 3).map((item) => (
-                <li key={item}>• {item}</li>
+              {report?.gaps?.slice(0, 3)?.map((item) => (
+                <li key={item}>{item}</li>
               ))}
             </ul>
 
-            {/* Assessment History Snippet */}
             <div className="mt-6 pt-5 border-t border-slate-100">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
@@ -276,12 +293,8 @@ export default function DashboardPage() {
                 </Link>
               </div>
               <div className="space-y-2">
-                {history.slice(0, 2).map((h) => (
-                  <Link
-                    key={h.id}
-                    href="/dashboard/history"
-                    className="block rounded-xl bg-slate-50 p-2.5 text-xs hover:bg-indigo-50 transition border border-slate-100"
-                  >
+                {history?.slice(0, 2)?.map((h) => (
+                  <Link key={h.id} href="/dashboard/history" className="block rounded-xl bg-slate-50 p-2.5 text-xs hover:bg-indigo-50 transition border border-slate-100">
                     <div className="flex justify-between font-bold text-slate-800">
                       <span>{h.target}</span>
                       <span className="text-emerald-600">{h.matchScore}% Cocok</span>
@@ -300,7 +313,7 @@ export default function DashboardPage() {
           </aside>
         </section>
 
-        {/* Original Section: Current vs Required Bar Meters */}
+        {/* Current vs Required Bar Meters */}
         <section className="mt-8 rounded-[32px] border border-slate-200 bg-white p-6 shadow-soft">
           <div className="flex items-center justify-between gap-4">
             <div>
@@ -312,9 +325,8 @@ export default function DashboardPage() {
             </Link>
           </div>
           <div className="mt-6 grid gap-4 md:grid-cols-2">
-            {report.skillAnalysis.map((item) => {
-              const statusLabel =
-                item.status === 'Strong' ? 'Kuat / Siap' : item.status === 'Gap' ? 'Perlu Ditingkatkan' : 'Cukup';
+            {report?.skillAnalysis?.map((item) => {
+              const statusLabel = item.status === 'Strong' ? 'Kuat / Siap' : item.status === 'Gap' ? 'Perlu Ditingkatkan' : 'Cukup';
               return (
                 <article key={item.skill} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                   <div className="flex items-center justify-between">
@@ -342,7 +354,7 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* Original Section: Generate Learning Roadmap */}
+        {/* Generate Learning Roadmap */}
         <section id="roadmap" className="mt-8 scroll-mt-6 rounded-[32px] border border-slate-200 bg-white p-6 shadow-soft">
           <div className="flex items-center justify-between gap-4">
             <div>
@@ -358,14 +370,8 @@ export default function DashboardPage() {
           </div>
 
           <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            {report.roadmap.map((step) => {
-              const statusDisplay =
-                step.status === 'Completed'
-                  ? 'Selesai'
-                  : step.status === 'In Progress'
-                  ? 'Sedang Berjalan'
-                  : 'Belum Dimulai';
-
+            {report?.roadmap?.map((step) => {
+              const statusDisplay = step.status === 'Completed' ? 'Selesai' : step.status === 'In Progress' ? 'Sedang Berjalan' : 'Belum Dimulai';
               return (
                 <div key={step.phase} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                   <div className="flex justify-between items-center">
@@ -383,7 +389,7 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* Original Section: CV & assessment + Rekomendasi Sertifikasi */}
+        {/* CV & assessment + Rekomendasi Sertifikasi */}
         <section id="profile" className="mt-8 grid scroll-mt-6 gap-6 lg:grid-cols-[0.9fr_1.1fr]">
           <article id="certifications" className="scroll-mt-6 rounded-[32px] border border-slate-200 bg-white p-6 shadow-soft">
             <h2 className="text-2xl font-black text-slate-900">Dokumen & asesmen</h2>
@@ -408,17 +414,12 @@ export default function DashboardPage() {
             </div>
 
             <div className="mt-5 space-y-3">
-              {report.certifications.map((item) => {
+              {report?.certifications?.map((item) => {
                 const catalogMatch = certificationService.getAll().find((c) => c.name.toLowerCase().includes(item.name.toLowerCase()) || item.name.toLowerCase().includes(c.name.toLowerCase()));
                 const img = item.imageUrl || catalogMatch?.imageUrl || 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=200&q=80';
                 return (
                   <div key={item.name} className="flex items-center gap-3.5 rounded-2xl border border-slate-200 bg-slate-50 p-3.5">
-                    <img
-                      src={img}
-                      alt={item.name}
-                      className="h-12 w-12 rounded-xl object-cover shrink-0 border border-slate-200 shadow-2xs"
-                      loading="lazy"
-                    />
+                    <img src={img} alt={item.name} className="h-12 w-12 rounded-xl object-cover shrink-0 border border-slate-200 shadow-2xs" loading="lazy" />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
                         <h3 className="text-sm font-black text-slate-900 truncate">{item.name}</h3>
@@ -435,39 +436,27 @@ export default function DashboardPage() {
           </article>
         </section>
 
-        {/* Rekomendasi Lowongan Kerja Cocok (Sesuai Asesmen AI) */}
+        {/* Rekomendasi Lowongan Kerja Cocok */}
         <section id="jobs" className="mt-8 scroll-mt-6 rounded-[32px] border border-slate-200 bg-white p-6 shadow-soft sm:p-8">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <div className="flex items-center gap-2">
-                <span className="inline-block rounded-full bg-indigo-50 px-3 py-1 text-xs font-black uppercase tracking-[0.2em] text-indigo-600">
-                  Rekomendasi Karier AI
-                </span>
-                <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800">
-                  Terpadan Otomatis
-                </span>
+                <span className="inline-block rounded-full bg-indigo-50 px-3 py-1 text-xs font-black uppercase tracking-[0.2em] text-indigo-600">Rekomendasi Karier AI</span>
+                <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800">Terpadan Otomatis</span>
               </div>
-              <h2 className="mt-2 text-2xl font-black text-slate-900">
-                Lowongan Kerja yang Cocok dengan Profil Asesmenmu
-              </h2>
+              <h2 className="mt-2 text-2xl font-black text-slate-900">Lowongan Kerja yang Cocok dengan Profil Asesmenmu</h2>
               <p className="mt-1 text-xs text-slate-500 max-w-2xl">
                 Berdasarkan target <strong className="text-slate-800 font-bold">{report.primarySkill}</strong> dan keahlian yang telah kamu kuasai, berikut posisi industri yang paling relevan untukmu saat ini.
               </p>
             </div>
-            <Link
-              href="/dashboard/jobs"
-              className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-100 transition whitespace-nowrap shadow-2xs"
-            >
-              Lihat Semua Lowongan ({matchedJobs.length} Posisi) →
+            <Link href="/dashboard/jobs" className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-100 transition whitespace-nowrap shadow-2xs">
+              Lihat Semua Lowongan ({matchedJobs?.length || 0} Posisi) →
             </Link>
           </div>
 
           <div className="mt-6 grid gap-4 md:grid-cols-3">
-            {matchedJobs.slice(0, 3).map((job) => (
-              <article
-                key={job.id}
-                className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-slate-50 p-4.5 transition hover:border-indigo-300 hover:bg-white shadow-2xs"
-              >
+            {matchedJobs?.slice(0, 3)?.map((job) => (
+              <article key={job.id} className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-slate-50 p-4.5 transition hover:border-indigo-300 hover:bg-white shadow-2xs">
                 <div>
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2.5">
@@ -483,37 +472,24 @@ export default function DashboardPage() {
                       {job.matchPercentage}% Cocok
                     </span>
                   </div>
-
                   <div className="mt-3 flex flex-wrap gap-1 text-[10px]">
                     <span className="rounded-md bg-slate-200/70 px-2 py-0.5 font-semibold text-slate-700">{job.location}</span>
                     <span className="rounded-md bg-slate-200/70 px-2 py-0.5 font-semibold text-slate-700">{job.workplaceType}</span>
                     <span className="rounded-md bg-indigo-100 px-2 py-0.5 font-bold text-indigo-800">{job.type}</span>
                   </div>
-
-                  <p className="mt-2.5 text-xs text-slate-600 line-clamp-2 leading-relaxed">
-                    {job.description}
-                  </p>
-
+                  <p className="mt-2.5 text-xs text-slate-600 line-clamp-2 leading-relaxed">{job.description}</p>
                   <div className="mt-3 flex flex-wrap gap-1">
-                    {job.matchedSkills.slice(0, 2).map((s) => (
-                      <span key={s} className="rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 px-1.5 py-0.5 text-[9px] font-bold">
-                        ✓ {s}
-                      </span>
+                    {job.matchedSkills?.slice(0, 2)?.map((s) => (
+                      <span key={s} className="rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 px-1.5 py-0.5 text-[9px] font-bold">✓ {s}</span>
                     ))}
-                    {job.missingSkills.slice(0, 1).map((s) => (
-                      <span key={s} className="rounded-md bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 text-[9px] font-bold">
-                        💡 {s}
-                      </span>
+                    {job.missingSkills?.slice(0, 1)?.map((s) => (
+                      <span key={s} className="rounded-md bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 text-[9px] font-bold">💡 {s}</span>
                     ))}
                   </div>
                 </div>
-
                 <div className="mt-4 pt-3 border-t border-slate-200/60 flex items-center justify-between">
                   <span className="text-xs font-black text-slate-900">{job.salary}</span>
-                  <Link
-                    href={`/dashboard/jobs?id=${job.id}`}
-                    className="rounded-xl bg-gradient-to-r from-indigo-600 to-sky-500 px-3.5 py-1.5 text-[11px] font-bold text-white shadow-soft hover:opacity-95 transition"
-                  >
+                  <Link href={`/dashboard/jobs?id=${job.id}`} className="rounded-xl bg-gradient-to-r from-indigo-600 to-sky-500 px-3.5 py-1.5 text-[11px] font-bold text-white shadow-soft hover:opacity-95 transition">
                     Lamar Cepat →
                   </Link>
                 </div>

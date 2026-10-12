@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import RecommendationValidation from '../components/recommendation-validation';
 import { SearchFilter } from '../components/ui/search-filter';
 import { MetricCard } from '../components/ui/metric-card';
+import { assessmentService } from '../services/assessment-service';
 
 type StudentCounselingMentee = {
   id: string;
@@ -79,10 +80,62 @@ const initialStudents: StudentCounselingMentee[] = [
 ];
 
 export default function CounselorPage() {
-  const [students] = useState<StudentCounselingMentee[]>(initialStudents);
+  const [students, setStudents] = useState<StudentCounselingMentee[]>(initialStudents);
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedStudent, setSelectedStudent] = useState<StudentCounselingMentee | null>(initialStudents[0] ?? null);
+
+  useEffect(() => {
+    // Muat riwayat asesmen asli yang diisi oleh pelajar
+    const history = assessmentService.getHistory();
+    const studentAssessments = history.filter(
+      (h) => h.role === 'Pelajar' || h.jenjang?.includes('Pelajar')
+    );
+
+    if (studentAssessments.length > 0) {
+      const dynamicStudents: StudentCounselingMentee[] = studentAssessments.map((h, idx) => {
+        const studentName = h.userName || (h.target ? `Pelajar (${h.target})` : `Pelajar Baru #${idx + 1}`);
+        const parsedGrades: Record<string, number> = {};
+        if (h.reportGrades) {
+          Object.entries(h.reportGrades).forEach(([k, v]) => {
+            parsedGrades[k] = Number(v) || 80;
+          });
+        }
+
+        const fallbackMajors = [
+          { title: h.target || 'Informatika', match: h.matchScore, jenjang: 'Sarjana (S1)' },
+          { title: 'Sistem Informasi', match: Math.max(70, h.matchScore - 4), jenjang: 'Sarjana (S1)' },
+          { title: 'Teknologi Informasi', match: Math.max(68, h.matchScore - 8), jenjang: 'Sarjana Terapan (D4)' },
+        ];
+
+        const progPct = typeof h.progressPercentage === 'number' ? h.progressPercentage : 35;
+        const expStatus = h.roadmapStatus || (progPct > 0 ? `Aktif Belajar (${progPct}%)` : 'Baru Mulai (Tahap 1)');
+
+        return {
+          id: h.id,
+          name: studentName,
+          school: h.school || 'SMA/SMK Sederajat',
+          grade: h.grade || 'Kelas XII',
+          primaryInterest: h.primaryInterest || h.target,
+          recommendedMajors: fallbackMajors,
+          matchScore: h.matchScore,
+          explorationStatus: expStatus,
+          explorationPercentage: progPct,
+          reportGrades: Object.keys(parsedGrades).length > 0 ? parsedGrades : { Matematika: 85, 'Bahasa Indonesia': 88, 'Bahasa Inggris': 82, Informatika: 88 },
+          careerAspiration: h.careerAspiration || `Bekerja atau studi lanjut di bidang ${h.target}`,
+          needsReview: true,
+        };
+      });
+
+      // Gabungkan data baru dengan data seed (tanpa duplikat ID)
+      const combined = [
+        ...dynamicStudents,
+        ...initialStudents.filter((init) => !dynamicStudents.some((d) => d.id === init.id)),
+      ];
+      setStudents(combined);
+      setSelectedStudent(combined[0] ?? null);
+    }
+  }, []);
 
   const filteredStudents = useMemo(() => {
     return students.filter((student) => {
@@ -116,11 +169,19 @@ export default function CounselorPage() {
               Fasilitasi konsultasi arah minat, pemetaan jurusan perguruan tinggi yang cocok, dan berikan validasi resmi bagi siswa yang merencanakan studi lanjut.
             </p>
           </div>
-          <div className="rounded-2xl border border-indigo-100 bg-indigo-50/70 p-4 text-center min-w-[160px]">
-            <p className="text-xs font-bold text-indigo-600 uppercase tracking-wider">
-              Siswa Bimbingan
-            </p>
-            <p className="text-3xl font-black text-slate-900 mt-1">{students.length}</p>
+          <div className="flex flex-col sm:flex-row items-center gap-3">
+            <Link
+              href="/counselor/reports"
+              className="rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-xs font-bold text-indigo-700 hover:bg-indigo-100 transition whitespace-nowrap shadow-2xs"
+            >
+              📊 Lihat Laporan Konseling Siswa →
+            </Link>
+            <div className="rounded-2xl border border-indigo-100 bg-indigo-50/70 p-4 text-center min-w-[140px]">
+              <p className="text-xs font-bold text-indigo-600 uppercase tracking-wider">
+                Siswa Bimbingan
+              </p>
+              <p className="text-3xl font-black text-slate-900 mt-1">{students.length}</p>
+            </div>
           </div>
         </div>
       </header>

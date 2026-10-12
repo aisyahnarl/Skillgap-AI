@@ -184,4 +184,14 @@ export const authService = {
     localStorage.removeItem(AUTH_KEY);
     localStorage.removeItem(CURRENT_USER_KEY);
   },
+  async getDashboardStats() {
+    try {
+      const res = await fetch('http://127.0.0.1:8000/api/dashboard');
+      if (!res.ok) throw new Error('Gagal mengambil data');
+      return await res.json();
+    } catch (error) {
+      console.error('Error dari backend:', error);
+      return null;
+    }
+  }
 };

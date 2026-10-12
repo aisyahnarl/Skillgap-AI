@@ -134,6 +134,45 @@ export const roadmapService = {
   save(phases: RoadmapPhase[]): void {
     if (typeof window === 'undefined') return;
     localStorage.setItem(ROADMAP_KEY, JSON.stringify(phases));
+
+    // Sinkronkan progres ke riwayat profil aktif agar dashboard Guru BK & Dosen langsung terupdate
+    try {
+      const authRaw = localStorage.getItem('skillgap-user');
+      const currentUser = authRaw ? JSON.parse(authRaw) : null;
+      if (currentUser?.email || currentUser?.name) {
+        const pct = this.calculateOverallProgress(phases);
+        const inProgressPhase = phases.find((p) => p.status === 'In Progress');
+        const statusText = inProgressPhase
+          ? `${inProgressPhase.phase}: ${inProgressPhase.title} (${pct}%)`
+          : pct === 100
+          ? 'Roadmap Selesai 100%'
+          : `Progres Belajar: ${pct}%`;
+
+        // Update di assessment history
+        const histRaw = localStorage.getItem('skillgap-assessment-history');
+        if (histRaw) {
+          const hist = JSON.parse(histRaw);
+          if (Array.isArray(hist) && hist.length > 0) {
+            const updated = hist.map((item) => {
+              const matchEmail = item.userEmail && item.userEmail.toLowerCase() === (currentUser.email || '').toLowerCase();
+              const matchName = item.userName && item.userName.toLowerCase() === (currentUser.name || '').toLowerCase();
+              if (matchEmail || matchName) {
+                return {
+                  ...item,
+                  progressPercentage: pct,
+                  roadmapStatus: statusText,
+                  lastUpdated: new Date().toISOString(),
+                };
+              }
+              return item;
+            });
+            localStorage.setItem('skillgap-assessment-history', JSON.stringify(updated));
+          }
+        }
+      }
+    } catch {
+      // ignore
+    }
   },
 
   toggleTask(phaseIndex: number, taskIndex: number): RoadmapPhase[] {

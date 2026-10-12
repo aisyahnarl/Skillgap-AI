@@ -25,8 +25,11 @@ function JobsPageContent() {
   const [selectedJob, setSelectedJob] = useState<MatchedJobVacancy | null>(null);
   const [toastMessage, setToastMessage] = useState('');
 
-  // Active Tab: 'all' | 'recommended' | 'saved' | 'applications'
-  const [activeTab, setActiveTab] = useState<'all' | 'recommended' | 'saved' | 'applications'>('all');
+  // Active Tab: 'all' | 'recommended' | 'live' | 'saved' | 'applications'
+  const [activeTab, setActiveTab] = useState<'all' | 'recommended' | 'live' | 'saved' | 'applications'>('all');
+  const [liveJobs, setLiveJobs] = useState<any[]>([]);
+  const [isLiveLoading, setIsLiveLoading] = useState(false);
+  const [isLiveSourceApi, setIsLiveSourceApi] = useState(false);
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -78,7 +81,28 @@ function JobsPageContent() {
       const target = loadedJobs.find((j) => j.id === initialJobId);
       if (target) setSelectedJob(target);
     }
+
+    // Load Live IT Jobs feed
+    fetchLiveJobs();
   }, [initialJobId]);
+
+  const fetchLiveJobs = async (customKeyword = '') => {
+    setIsLiveLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (customKeyword) params.set('q', customKeyword);
+      const res = await fetch(`/api/jobs/live?${params.toString()}`);
+      const data = await res.json();
+      if (data.success && Array.isArray(data.jobs)) {
+        setLiveJobs(data.jobs);
+        setIsLiveSourceApi(Boolean(data.isLiveApi));
+      }
+    } catch (err) {
+      console.warn('Failed to fetch live IT jobs:', err);
+    } finally {
+      setIsLiveLoading(false);
+    }
+  };
 
   // Handle Bookmark Toggle
   const handleToggleBookmark = (jobId: string, e?: React.MouseEvent) => {
@@ -241,6 +265,21 @@ function JobsPageContent() {
           </button>
           <button
             type="button"
+            onClick={() => {
+              setActiveTab('live');
+              fetchLiveJobs(searchQuery);
+            }}
+            className={`rounded-full px-4 py-2 text-xs font-bold transition flex items-center gap-1.5 ${
+              activeTab === 'live'
+                ? 'bg-gradient-to-r from-teal-600 to-emerald-500 text-white shadow-soft'
+                : 'bg-white text-emerald-800 border border-emerald-300 hover:bg-emerald-50/60'
+            }`}
+          >
+            <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+            🌐 Bursa Loker IT Live ({liveJobs.length})
+          </button>
+          <button
+            type="button"
             onClick={() => setActiveTab('recommended')}
             className={`rounded-full px-4 py-2 text-xs font-bold transition ${
               activeTab === 'recommended'
@@ -345,7 +384,110 @@ function JobsPageContent() {
 
       {/* Main Job Cards Grid */}
       <section className="mt-6">
-        {filteredJobs.length === 0 ? (
+        {activeTab === 'live' ? (
+          <div>
+            <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 text-white font-bold text-lg">
+                  🌐
+                </span>
+                <div>
+                  <h3 className="text-sm font-black text-emerald-950 flex items-center gap-2">
+                    Bursa Lowongan Kerja IT Indonesia (Real-Time Feed)
+                    <span className="rounded-full bg-emerald-200 px-2 py-0.5 text-[10px] font-bold text-emerald-900">
+                      {isLiveSourceApi ? 'Live API (JSearch / RapidAPI)' : 'Real-time IT Catalog'}
+                    </span>
+                  </h3>
+                  <p className="text-xs text-emerald-800 mt-0.5">
+                    Lowongan khusus bidang Teknologi Informasi (Software Engineer, Data, Cyber, Cloud, UI/UX). Klik tombol lamar untuk diarahkan langsung ke halaman pendaftaran resmi.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => fetchLiveJobs(searchQuery)}
+                disabled={isLiveLoading}
+                className="shrink-0 rounded-xl bg-emerald-700 px-4 py-2 text-xs font-bold text-white shadow-soft hover:bg-emerald-800 transition disabled:opacity-50 cursor-pointer"
+              >
+                {isLiveLoading ? '⏳ Memuat data live...' : '🔄 Segarkan Lowongan'}
+              </button>
+            </div>
+
+            {isLiveLoading ? (
+              <div className="rounded-[28px] border border-slate-200 bg-white p-12 text-center text-sm text-slate-500 shadow-soft">
+                <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-emerald-600 border-t-transparent mb-3" />
+                <p className="font-bold text-slate-800">Menghubungkan ke API Bursa Lowongan IT Real-Time...</p>
+                <p className="text-xs text-slate-400 mt-1">Mengambil lowongan IT terkini di Indonesia</p>
+              </div>
+            ) : liveJobs.length === 0 ? (
+              <EmptyState
+                title="Tidak Ada Lowongan IT Ditemukan"
+                description="Coba ubah kata kunci pencarian Anda untuk menemukan lowongan teknologi lainnya."
+                actionLabel="Tampilkan Semua Loker IT"
+                onAction={() => fetchLiveJobs('')}
+              />
+            ) : (
+              <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                {liveJobs.map((liveJob) => (
+                  <article
+                    key={liveJob.id}
+                    className="flex flex-col justify-between rounded-[28px] border border-slate-200 bg-white p-6 shadow-soft hover:border-emerald-300 hover:shadow-xl transition duration-200"
+                  >
+                    <div>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-800">
+                            {liveJob.category}
+                          </span>
+                          <h3 className="mt-2 text-base font-black text-slate-900 line-clamp-1 hover:text-emerald-700 transition">
+                            {liveJob.title}
+                          </h3>
+                          <p className="text-xs font-bold text-slate-600 mt-0.5">{liveJob.company}</p>
+                          <p className="text-[11px] text-slate-400 mt-0.5">📍 {liveJob.location}</p>
+                        </div>
+                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-600 whitespace-nowrap">
+                          {liveJob.workplaceType}
+                        </span>
+                      </div>
+
+                      <div className="mt-4 rounded-xl bg-slate-50 p-3 border border-slate-100 text-xs text-slate-700 line-clamp-3 leading-relaxed">
+                        {liveJob.description}
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap gap-1.5">
+                        {liveJob.requiredSkills?.map((skill: string) => (
+                          <span
+                            key={skill}
+                            className="rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-800 border border-emerald-200/60"
+                          >
+                            {skill}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between gap-3">
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-slate-400 block">Kisaran Gaji</span>
+                        <p className="text-xs font-black text-emerald-700">{liveJob.salary}</p>
+                      </div>
+
+                      <a
+                        href={liveJob.applyUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 px-4 py-2 text-xs font-black text-white shadow-soft hover:opacity-95 transition"
+                      >
+                        Lamar Langsung ↗
+                      </a>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : filteredJobs.length === 0 ? (
           <EmptyState
             title="Tidak Ada Lowongan yang Cocok"
             description="Coba ubah kata kunci pencarian atau sesuaikan filter untuk melihat lebih banyak kesempatan kerja."

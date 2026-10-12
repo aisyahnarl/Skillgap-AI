@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import RecommendationValidation from '../components/recommendation-validation';
 import { SearchFilter } from '../components/ui/search-filter';
 import { MetricCard } from '../components/ui/metric-card';
+import { assessmentService } from '../services/assessment-service';
 
 type StudentMentee = {
   id: string;
@@ -82,10 +83,60 @@ const initialStudents: StudentMentee[] = [
 ];
 
 export default function LecturerPage() {
-  const [students] = useState<StudentMentee[]>(initialStudents);
+  const [students, setStudents] = useState<StudentMentee[]>(initialStudents);
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedStudent, setSelectedStudent] = useState<StudentMentee | null>(initialStudents[0] ?? null);
+
+  useEffect(() => {
+    // Muat riwayat asesmen asli yang diisi oleh mahasiswa
+    const history = assessmentService.getHistory();
+    const collegeAssessments = history.filter(
+      (h) => h.role === 'Mahasiswa' || h.jenjang === 'Mahasiswa'
+    );
+
+    if (collegeAssessments.length > 0) {
+      const dynamicStudents: StudentMentee[] = collegeAssessments.map((h, idx) => {
+        const studentName = h.userName || (h.target ? `Mahasiswa (${h.target})` : `Mahasiswa Baru #${idx + 1}`);
+        const nim = h.nim || `21051204${(100 + idx).toString().slice(-3)}`;
+        const strengths = h.report?.strengths && h.report.strengths.length > 0
+          ? h.report.strengths
+          : ['Analisis kuantitatif', 'Algoritma dasar', 'Logika pemrograman'];
+        const gaps = h.report?.gaps && h.report.gaps.length > 0
+          ? h.report.gaps
+          : ['Syntax SQL JOIN & Window Functions', 'Portofolio dataset riil'];
+        const certs = h.report?.certifications && h.report.certifications.length > 0
+          ? h.report.certifications.map((c) => c.name)
+          : ['Google Data Analytics', 'Microsoft PL-300'];
+
+        const progPct = typeof h.progressPercentage === 'number' ? h.progressPercentage : 30;
+        const rdStatus = h.roadmapStatus || (progPct > 0 ? `Sedang Berjalan (${progPct}%)` : 'Belum Dimulai');
+
+        return {
+          id: h.id,
+          name: studentName,
+          nim,
+          target: h.target || h.report?.primarySkill || 'Data Science',
+          matchScore: h.matchScore,
+          skillGap: h.skillGap,
+          roadmapStatus: rdStatus,
+          roadmapProgress: progPct,
+          strengths,
+          gaps,
+          certifications: certs,
+          needsReview: true,
+        };
+      });
+
+      // Gabungkan data baru dengan data seed (tanpa duplikat ID)
+      const combined = [
+        ...dynamicStudents,
+        ...initialStudents.filter((init) => !dynamicStudents.some((d) => d.id === init.id)),
+      ];
+      setStudents(combined);
+      setSelectedStudent(combined[0] ?? null);
+    }
+  }, []);
 
   const filteredStudents = useMemo(() => {
     return students.filter((student) => {
@@ -119,11 +170,19 @@ export default function LecturerPage() {
               Pantau target karier, match score, gap kompetensi, dan progres roadmap mahasiswa bimbingan akademik. Berikan validasi kelayakan jalur dan catatan pembimbingan.
             </p>
           </div>
-          <div className="rounded-2xl border border-indigo-100 bg-indigo-50/70 p-4 text-center min-w-[160px]">
-            <p className="text-xs font-bold text-indigo-600 uppercase tracking-wider">
-              Total Bimbingan
-            </p>
-            <p className="text-3xl font-black text-slate-900 mt-1">{students.length}</p>
+          <div className="flex flex-col sm:flex-row items-center gap-3">
+            <Link
+              href="/lecturer/reports"
+              className="rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-xs font-bold text-indigo-700 hover:bg-indigo-100 transition whitespace-nowrap shadow-2xs"
+            >
+              📊 Lihat Laporan Bimbingan Mahasiswa →
+            </Link>
+            <div className="rounded-2xl border border-indigo-100 bg-indigo-50/70 p-4 text-center min-w-[140px]">
+              <p className="text-xs font-bold text-indigo-600 uppercase tracking-wider">
+                Total Bimbingan
+              </p>
+              <p className="text-3xl font-black text-slate-900 mt-1">{students.length}</p>
+            </div>
           </div>
         </div>
       </header>

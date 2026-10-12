@@ -50,11 +50,24 @@ export type AssessmentReport = {
 export type AssessmentHistoryItem = {
   id: string;
   submittedAt: string;
+  userName?: string;
+  userEmail?: string;
   target: string;
   matchScore: number;
   skillGap: number;
   role?: string;
   jenjang?: string;
+  school?: string;
+  grade?: string;
+  primaryInterest?: string;
+  reportGrades?: Record<string, number | string>;
+  careerAspiration?: string;
+  studentGoal?: string;
+  nim?: string;
+  programStudi?: string;
+  progressPercentage?: number;
+  roadmapStatus?: string;
+  lastUpdated?: string;
   report: AssessmentReport;
 };
 
@@ -268,6 +281,34 @@ export const assessmentService = {
     const updated = [item, ...history];
     localStorage.setItem(HISTORY_KEY, JSON.stringify(updated));
     this.setActiveReport(item.report);
+  },
+
+  updateUserProgress(userEmailOrName: string, progressPercentage: number, roadmapStatus?: string): void {
+    if (typeof window === 'undefined' || !userEmailOrName) return;
+    try {
+      const history = this.getHistory();
+      let matched = false;
+      const updated = history.map((item) => {
+        const matchEmail = item.userEmail && item.userEmail.toLowerCase() === userEmailOrName.toLowerCase();
+        const matchName = item.userName && item.userName.toLowerCase() === userEmailOrName.toLowerCase();
+        if ((matchEmail || matchName) && !matched) {
+          matched = true;
+          return {
+            ...item,
+            progressPercentage,
+            roadmapStatus: roadmapStatus || item.roadmapStatus || `Progres Belajar: ${progressPercentage}%`,
+            lastUpdated: new Date().toISOString(),
+          };
+        }
+        return item;
+      });
+
+      if (matched) {
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(updated));
+      }
+    } catch {
+      // ignore
+    }
   },
 
   getById(id: string): AssessmentHistoryItem | null {

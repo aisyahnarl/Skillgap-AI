@@ -13,22 +13,24 @@ export default function SkillGapPage() {
 
   useEffect(() => {
     const active = assessmentService.getActiveReport();
-    setReport(active);
+    if (active) setReport(active);
+    
     const user = authService.getCurrentUser();
     if (user?.role) setUserRole(user.role);
   }, []);
 
   const isPelajar = userRole === 'Pelajar';
 
+  // Tambahkan pelindung (report?.skillAnalysis || []) agar tidak crash saat data kosong
   const categories = useMemo(() => {
-    return ['All', ...new Set(report.skillAnalysis.map((s) => s.category))];
-  }, [report.skillAnalysis]);
+    return ['All', ...new Set((report?.skillAnalysis || []).map((s) => s.category))];
+  }, [report?.skillAnalysis]);
 
   const filteredSkills = useMemo(() => {
-    return report.skillAnalysis.filter(
+    return (report?.skillAnalysis || []).filter(
       (item) => selectedCategory === 'All' || item.category === selectedCategory,
     );
-  }, [report.skillAnalysis, selectedCategory]);
+  }, [report?.skillAnalysis, selectedCategory]);
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -46,12 +48,12 @@ export default function SkillGapPage() {
               {isPelajar ? 'Pemetaan Minat & Potensi Studi (Pelajar)' : 'Pemetaan Kompetensi & Kesenjangan Skill'}
             </span>
             <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900 sm:text-4xl">
-              {isPelajar ? `Peta Minat & Bakat: ${report.primarySkill}` : `Peta Kesenjangan Skill: ${report.primarySkill}`}
+              {isPelajar ? `Peta Minat & Bakat: ${report?.primarySkill || '-'}` : `Peta Kesenjangan Skill: ${report?.primarySkill || '-'}`}
             </h1>
             <p className="mt-1 text-sm text-slate-600 max-w-2xl">
               {isPelajar
-                ? `Visualisasi pemetaan minat belajar dan potensi akademikmu terhadap program studi dan bidang kejuruan yang direkomendasikan untuk target ${report.primarySkill}.`
-                : `Visualisasi komprehensif tingkat penguasaan kompetensimu dibandingkan ekspektasi standar industri untuk target karier ${report.primarySkill}.`}
+                ? `Visualisasi pemetaan minat belajar dan potensi akademikmu terhadap program studi dan bidang kejuruan yang direkomendasikan untuk target ${report?.primarySkill || '-'}.`
+                : `Visualisasi komprehensif tingkat penguasaan kompetensimu dibandingkan ekspektasi standar industri untuk target karier ${report?.primarySkill || '-'}.`}
             </p>
           </div>
           <div className="flex gap-2">
@@ -69,19 +71,19 @@ export default function SkillGapPage() {
       <section className="mt-6 grid gap-4 sm:grid-cols-3">
         <MetricCard
           label={isPelajar ? 'Kesesuaian Minat' : 'Skor Kecocokan Keseluruhan'}
-          value={`${report.matchScore}%`}
+          value={`${report?.matchScore || 0}%`}
           description={isPelajar ? 'Akurasi kecocokan jurusan' : 'Tingkat kesiapan profil'}
           tone="bg-emerald-50 text-emerald-700"
         />
         <MetricCard
           label={isPelajar ? 'Area Penguatan Belajar' : 'Total Kesenjangan Skill'}
-          value={`${report.skillGap}%`}
+          value={`${report?.skillGap || 0}%`}
           description={isPelajar ? 'Materi yang perlu dieksplorasi' : 'Rata-rata defisit kompetensi'}
           tone="bg-amber-50 text-amber-700"
         />
         <MetricCard
           label={isPelajar ? 'Pilihan Bidang Utama' : 'Target Bidang Industri'}
-          value={report.primarySkill}
+          value={report?.primarySkill || '-'}
           description={isPelajar ? 'Jurusan & karier sasaran' : 'Profesi acuan standar'}
           tone="bg-indigo-50 text-indigo-700"
         />
@@ -89,7 +91,7 @@ export default function SkillGapPage() {
 
       {/* Category Pills */}
       <div className="mt-6 flex flex-wrap gap-2">
-        {categories.map((category) => (
+        {categories?.map((category) => (
           <button
             key={category}
             type="button"
@@ -120,10 +122,10 @@ export default function SkillGapPage() {
           <DashboardCard
             title="Kekuatan Teridentifikasi"
             subtitle="Profil Keunggulan"
-            badge={<span className="sg-badge-success">{report.strengths.length} Poin</span>}
+            badge={<span className="sg-badge-success">{report?.strengths?.length || 0} Poin</span>}
           >
             <ul className="space-y-3 text-sm text-slate-700">
-              {report.strengths.map((item) => (
+              {report?.strengths?.map((item) => (
                 <li key={item} className="flex items-start gap-2.5">
                   <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700">
                     ✓
@@ -137,10 +139,10 @@ export default function SkillGapPage() {
           <DashboardCard
             title="Prioritas Penutupan Gap"
             subtitle="Rencana Aksi"
-            badge={<span className="sg-badge-danger">{report.gaps.length} Fokus</span>}
+            badge={<span className="sg-badge-danger">{report?.gaps?.length || 0} Fokus</span>}
           >
             <ul className="space-y-3 text-sm text-slate-700">
-              {report.gaps.map((item) => (
+              {report?.gaps?.map((item) => (
                 <li key={item} className="flex items-start gap-2.5">
                   <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-100 text-xs font-bold text-amber-800">
                     !

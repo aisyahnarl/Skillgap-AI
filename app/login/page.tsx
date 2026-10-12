@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { authService, type UserProfile } from '../services/auth-service';
+import { authService } from '../services/auth-service';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -11,6 +11,7 @@ export default function LoginPage() {
   const [form, setForm] = useState({ email: '', password: '' });
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     authService.ensureSeedUsers();
@@ -19,7 +20,7 @@ export default function LoginPage() {
     }
   }, [searchParams]);
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!form.email || !form.password) {
@@ -27,36 +28,49 @@ export default function LoginPage() {
       return;
     }
 
-    const savedUsers = authService.getAllUsers();
-    const matchedUser = savedUsers.find(
-      (user: UserProfile) =>
-        user.email.toLowerCase() === form.email.toLowerCase() && user.password === form.password,
-    );
-
-    if (!matchedUser) {
-      setError('Email atau password salah. Pastikan data login sesuai dengan akun yang terdaftar.');
-      return;
-    }
-
-    const role =
-      matchedUser.role === 'Admin' || matchedUser.email.toLowerCase().includes('admin')
-        ? 'Admin'
-        : matchedUser.role || 'Mahasiswa';
-
-    authService.setSession({
-      ...matchedUser,
-      role,
-    });
-
-    setMessage(`Login berhasil sebagai ${role}. Mengarahkan ke workspace...`);
+    setIsLoading(true);
     setError('');
+    setMessage('');
 
-    setTimeout(() => {
-      if (role === 'Admin') router.push('/admin');
-      else if (role === 'Dosen') router.push('/lecturer');
-      else if (role === 'Guru BK') router.push('/counselor');
-      else router.push('/dashboard');
-    }, 400);
+    try {
+      // Mengirim data login ke backend FastAPI
+      const res = await fetch('http://127.0.0.1:8000/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: form.email, password: form.password }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        // Jika gagal (email/password salah), tampilkan pesan error dari FastAPI
+        setError(data.detail || 'Email atau password salah.');
+        setIsLoading(false);
+        return;
+      }
+
+      // Jika berhasil, tentukan role dan simpan ke sesi
+      const role = data.user.role || 'Mahasiswa';
+      
+      authService.setSession({
+        ...data.user,
+        role,
+      });
+
+      setMessage(`Login berhasil sebagai ${role}. Mengarahkan ke workspace...`);
+
+      // Arahkan ke halaman sesuai peran
+      setTimeout(() => {
+        if (role === 'Admin') router.push('/admin');
+        else if (role === 'Dosen') router.push('/lecturer');
+        else if (role === 'Guru BK') router.push('/counselor');
+        else router.push('/dashboard');
+      }, 400);
+
+    } catch (err) {
+      setError('Gagal menghubungi server. Pastikan server FastAPI menyala.');
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -101,7 +115,7 @@ export default function LoginPage() {
           </div>
 
           {message && (
-            <div className="mb-4 rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm font-semibold text-indigo-700">
+            <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
               {message}
             </div>
           )}
@@ -145,9 +159,12 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              className="inline-flex w-full items-center justify-center rounded-2xl bg-gradient-to-r from-indigo-600 to-sky-500 px-4 py-3.5 text-sm font-bold text-white shadow-soft hover:opacity-95 transition"
+              disabled={isLoading}
+              className={`inline-flex w-full items-center justify-center rounded-2xl px-4 py-3.5 text-sm font-bold text-white shadow-soft transition ${
+                isLoading ? 'bg-slate-400 cursor-not-allowed' : 'bg-gradient-to-r from-indigo-600 to-sky-500 hover:opacity-95'
+              }`}
             >
-              Masuk ke Workspace
+              {isLoading ? 'Memproses...' : 'Masuk ke Workspace'}
             </button>
           </form>
 

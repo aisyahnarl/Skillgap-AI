@@ -5,6 +5,9 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { assessmentService } from '../services/assessment-service';
 import { roadmapService, type RoadmapPhase } from '../services/roadmap-service';
+import { authService } from '../services/auth-service';
+import HollandAssessment from './holland-assessment';
+import SkillGapAnalysis from './skill-gap-analysis';
 
 const assessmentSchema = z.object({
   name: z.string().min(2, 'Nama minimal 2 karakter'),
@@ -23,6 +26,10 @@ const questionnaireItems = [
 ];
 const assessmentSteps = ['Profil', 'Unggah CV', 'Kuesioner', 'Target Karier', 'Penilaian Mandiri', 'Tinjauan', 'Analisis'];
 const studentSteps = ['Profil', 'Minat & Bakat', 'Kuesioner', 'Target Studi', 'Penilaian Mandiri', 'Tinjauan', 'Analisis'];
+// Jalur khusus: Pelajar yang ingin Kuliah
+const studentKuliahSteps = ['Profil', 'Tujuan Studi', 'Nilai Rapor', 'Kuesioner Holland', 'Rekomen Jurusan', 'Tinjauan', 'Analisis'];
+// Jalur khusus: Pelajar yang ingin Kerja
+const studentKerjaSteps = ['Profil', 'Tujuan Kerja', 'Upload CV/Porto', 'Minat Bidang IT', 'Skill Check', 'Tinjauan', 'Analisis'];
 const skillLevels = ['Beginner', 'Basic', 'Intermediate', 'Advanced', 'Expert'] as const;
 
 type RoadmapStep = {
@@ -231,10 +238,25 @@ export default function AssessmentForm() {
   const [currentStep, setCurrentStep] = useState(1);
   const [isGenerating, setIsGenerating] = useState(false);
   const [studentProfile, setStudentProfile] = useState({ school: '', major: '', interests: '', activities: '', aspiration: '', story: '', birthDate: '', consent: false });
-  const [reportGrades, setReportGrades] = useState({ Matematika: '', 'Bahasa Indonesia': '', 'Bahasa Inggris': '', Informatika: '' });
+  const [reportGrades, setReportGrades] = useState({ Matematika: '', 'Bahasa Indonesia': '', 'Bahasa Inggris': '', Informatika: '', Fisika: '', IPA: '' });
   const [error, setError] = useState<string | null>(null);
+  // ── State baru: tujuan pelajar SMA/SMK ──────────────────────────────────
+  const [studentGoal, setStudentGoal] = useState<'kuliah' | 'kerja' | ''>('');
+  const [itJobInterest, setItJobInterest] = useState(''); // bidang IT yang diminati (untuk jalur kerja)
+  const [uploadedCvType, setUploadedCvType] = useState<'pdf' | 'doc' | 'ppt' | 'video' | 'image' | ''>(''); // tipe file yang diunggah
 
   useEffect(() => {
+    // Muat data pengguna yang sedang login
+    const user = authService.getCurrentUser();
+    if (user) {
+      setForm((prev) => ({
+        ...prev,
+        name: user.name || prev.name,
+        role: user.role || prev.role,
+        jenjang: user.jenjang || prev.jenjang,
+      }));
+    }
+
     const savedCv = localStorage.getItem('skillgap-cv');
     if (savedCv) {
       try {
@@ -271,43 +293,58 @@ export default function AssessmentForm() {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    const forbiddenExtensions = ['exe', 'zip', 'rar', 'tar', 'sh', 'bat', 'cmd', 'js', 'py', 'msi', 'bin'];
+    // Extension daftar terlarang (keamanan)
+    const forbiddenExtensions = ['exe', 'zip', 'rar', 'tar', 'sh', 'bat', 'cmd', 'msi', 'bin', 'apk', 'dmg'];
     const extension = file.name.toLowerCase().split('.').pop() ?? '';
 
     if (forbiddenExtensions.includes(extension)) {
-      setError(`File berekstensi .${extension} ditolak demi keamanan. Sistem hanya menerima file dokumen PDF atau DOCX.`);
+      setError(`File berekstensi .${extension} ditolak demi keamanan sistem.`);
       event.target.value = '';
       return;
     }
 
-    const allowedExtensions = ['pdf', 'docx', 'doc'];
-    const allowedTypes = [
-      'application/pdf',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    ];
+    // Tipe file yang diizinkan (diperluas sesuai saran: PDF, PPT, video, dll)
+    const docExtensions = ['pdf', 'docx', 'doc'];
+    const pptExtensions = ['ppt', 'pptx'];
+    const videoExtensions = ['mp4', 'mov', 'avi', 'mkv', 'webm'];
+    const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
 
-    if (!allowedExtensions.includes(extension) || (!allowedTypes.includes(file.type) && file.type !== '')) {
-      setError('Format file tidak didukung. Mohon unggah dokumen berformat PDF atau DOCX.');
+    const allAllowed = [...docExtensions, ...pptExtensions, ...videoExtensions, ...imageExtensions];
+
+    if (!allAllowed.includes(extension)) {
+      setError(`Format .${extension} tidak didukung. Format yang diterima: PDF, DOCX, PPT, PPTX, MP4, MOV, JPG, PNG.`);
       event.target.value = '';
       return;
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-      setError('Ukuran file melebihi batas maksimal 10 MB.');
+    // Batas ukuran file
+    const isVideo = videoExtensions.includes(extension);
+    const maxSize = isVideo ? 50 * 1024 * 1024 : 20 * 1024 * 1024; // 50MB untuk video, 20MB untuk lainnya
+    if (file.size > maxSize) {
+      setError(`Ukuran file melebihi batas maksimal (${isVideo ? '50 MB untuk video' : '20 MB untuk dokumen/gambar'}).`);
       event.target.value = '';
       return;
     }
+
+    // Tentukan tipe file
+    let fileType: typeof uploadedCvType = '';
+    if (docExtensions.includes(extension)) fileType = extension === 'pdf' ? 'pdf' : 'doc';
+    else if (pptExtensions.includes(extension)) fileType = 'ppt';
+    else if (videoExtensions.includes(extension)) fileType = 'video';
+    else if (imageExtensions.includes(extension)) fileType = 'image';
 
     const fileName = file.name;
     setUploadedCv(fileName);
     setUploadedCvSize(file.size);
+    setUploadedCvType(fileType);
     setError(null);
     localStorage.setItem(
       'skillgap-cv',
       JSON.stringify({
         name: fileName,
         size: file.size,
+        type: fileType,
+        extension,
         uploadedAt: new Date().toISOString(),
       }),
     );
@@ -400,14 +437,25 @@ export default function AssessmentForm() {
 
     localStorage.setItem('skillgap-assessment', JSON.stringify(assessmentResult));
     localStorage.setItem('skillgap-report', JSON.stringify(fullReport));
+    const currentUser = authService.getCurrentUser();
     assessmentService.addHistory({
       id: crypto.randomUUID(),
       submittedAt: assessmentResult.submittedAt,
+      userName: form.name || currentUser?.name || 'Pengguna Baru',
+      userEmail: currentUser?.email,
       target: form.target,
       matchScore: generatedRecommendation.matchScore,
       skillGap: generatedRecommendation.skillGap,
       role: form.role,
       jenjang: form.jenjang,
+      school: studentProfile.school || (isPelajar ? 'SMA/SMK Sederajat' : undefined),
+      grade: studentProfile.major ? `Jurusan ${studentProfile.major}` : undefined,
+      primaryInterest: isPelajar ? (studentProfile.interests || form.target) : undefined,
+      reportGrades: isPelajar ? reportGrades : undefined,
+      careerAspiration: studentProfile.aspiration || form.target,
+      studentGoal: isPelajar ? studentGoal : undefined,
+      nim: !isPelajar ? 'MHS-' + Math.floor(1000000000 + Math.random() * 9000000000) : undefined,
+      programStudi: !isPelajar ? (form.target || 'Informatika') : undefined,
       report: fullReport,
     });
     roadmapService.save(roadmapPhases);
@@ -417,8 +465,16 @@ export default function AssessmentForm() {
   };
 
   const isPelajar = form.jenjang === 'Pelajar SMA-SMK Sederajat' || form.role === 'Pelajar';
-  const visibleSteps = isPelajar ? studentSteps : assessmentSteps;
+  // Gunakan step yang sesuai dengan jalur yang dipilih
+  const visibleSteps = isPelajar
+    ? (studentGoal === 'kuliah' ? studentKuliahSteps : studentGoal === 'kerja' ? studentKerjaSteps : studentSteps)
+    : assessmentSteps;
   const isMinor = studentProfile.birthDate ? (Date.now() - new Date(studentProfile.birthDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000) < 18 : false;
+
+  // Helper: apakah grade rapor cukup untuk dihitung rata-rata
+  const gradeValues = Object.values(reportGrades).filter(v => v !== '').map(Number).filter(n => !isNaN(n));
+  const gradeAverage = gradeValues.length > 0 ? gradeValues.reduce((a, b) => a + b, 0) / gradeValues.length : 0;
+
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
@@ -441,33 +497,270 @@ export default function AssessmentForm() {
 
       <form className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]" onSubmit={handleSubmit} noValidate>
         <article className="space-y-6 rounded-[28px] border border-slate-200 bg-white p-6 shadow-soft">
+          {/* ── Step 2 untuk NON-PELAJAR: Upload CV multi-format ─────────────── */}
           {!isPelajar && <div hidden={currentStep !== 2} className="rounded-[24px] border border-indigo-200 bg-gradient-to-r from-indigo-50 via-white to-sky-50 p-5">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-sm font-bold uppercase tracking-[0.2em] text-indigo-600">Unggah CV / Portofolio</p>
-                <p className="mt-2 text-sm text-slate-600">Upload dokumen PDF atau DOCX agar sistem bisa menganalisis pengalaman, skill, dan sertifikasi.</p>
+                <p className="mt-2 text-sm text-slate-600">
+                  Upload CV, portofolio, presentasi, atau video profil. Format yang diterima: PDF, DOCX, PPT, PPTX, MP4, MOV, JPG, PNG (maks. 50 MB untuk video, 20 MB untuk dokumen).
+                </p>
               </div>
             </div>
 
             <label className="mt-4 flex cursor-pointer items-center justify-center rounded-2xl border border-dashed border-indigo-300 bg-white px-4 py-6 text-sm font-semibold text-indigo-700 transition hover:border-indigo-400 hover:bg-indigo-50">
               <input
                 type="file"
-                accept=".pdf,.doc,.docx"
+                accept=".pdf,.doc,.docx,.ppt,.pptx,.mp4,.mov,.avi,.mkv,.webm,.jpg,.jpeg,.png,.gif,.webp"
                 className="hidden"
                 onChange={handleCvUpload}
               />
               <span className="inline-flex items-center gap-2">
-                <span className="text-lg">📄</span>
+                <span className="text-lg">
+                  {uploadedCvType === 'video' ? '🎥' : uploadedCvType === 'ppt' ? '📊' : uploadedCvType === 'image' ? '🖼️' : '📄'}
+                </span>
                 {uploadedCv ? 'Ganti file CV / portofolio' : 'Pilih file CV / portofolio'}
               </span>
             </label>
 
+            <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
+              {[{label:'📄 PDF', ext:'pdf'},{label:'📝 DOCX',ext:'docx'},{label:'📊 PPT/PPTX',ext:'ppt'},{label:'🎥 Video MP4/MOV',ext:'video'},{label:'🖼️ JPG/PNG',ext:'image'}].map(t => (
+                <span key={t.ext} className="rounded-md bg-slate-100 px-2 py-1 font-semibold text-slate-600">{t.label}</span>
+              ))}
+            </div>
+
             <div className="mt-4 rounded-2xl border border-indigo-100 bg-indigo-50/70 p-4 text-sm text-indigo-700">
               {uploadedCv
-                ? `CV berhasil diupload · ${uploadedCv} · ${(uploadedCvSize / (1024 * 1024)).toFixed(1)} MB`
-                : 'Belum ada file yang diunggah. Setelah dipilih, skill akan otomatis dicatat dan ditampilkan pada ringkasan profil.'}
+                ? `✅ File berhasil diunggah · ${uploadedCv} · ${(uploadedCvSize / (1024 * 1024)).toFixed(1)} MB${uploadedCvType ? ` · Tipe: ${uploadedCvType.toUpperCase()}` : ''}`
+                : 'Belum ada file yang diunggah. AI (Gemini) akan membaca dan menganalisis konten dokumen/video kamu secara langsung.'}
             </div>
           </div>}
+
+          {/* ── Step 2 untuk PELAJAR: Konfirmasi Tujuan (Kuliah atau Kerja) ─── */}
+          {isPelajar && <div hidden={currentStep !== 2} className="rounded-[24px] border border-slate-200 bg-slate-50 p-5">
+            <p className="text-sm font-bold uppercase tracking-[0.2em] text-indigo-600">Konfirmasi Tujuan Setelah Lulus</p>
+            <p className="mt-2 text-sm text-slate-600">
+              Setelah lulus SMA/SMK, apa rencanamu? Pilih salah satu untuk mendapatkan rekomendasi yang lebih akurat.
+            </p>
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              {/* Pilihan KULIAH */}
+              <button
+                type="button"
+                onClick={() => setStudentGoal('kuliah')}
+                className={`rounded-2xl border-2 p-5 text-left transition ${
+                  studentGoal === 'kuliah'
+                    ? 'border-indigo-500 bg-indigo-50 shadow-sm'
+                    : 'border-slate-200 bg-white hover:border-indigo-300'
+                }`}
+              >
+                <span className="text-3xl">🎓</span>
+                <h3 className={`mt-3 text-lg font-black ${studentGoal === 'kuliah' ? 'text-indigo-700' : 'text-slate-900'}`}>
+                  Lanjut Kuliah
+                </h3>
+                <p className="mt-1.5 text-xs text-slate-600 leading-relaxed">
+                  Dapatkan rekomendasi jurusan yang sesuai dengan minat dan bakatmu berdasarkan nilai rapor dan kuesioner Holland Code RIASEC.
+                </p>
+                <ul className="mt-3 space-y-1 text-xs text-slate-500">
+                  <li>✅ Input nilai rapor lengkap</li>
+                  <li>✅ Kuesioner Holland Code RIASEC</li>
+                  <li>✅ Rekomendasi jurusan + universitas</li>
+                  <li>✅ Peluang karier per jurusan</li>
+                </ul>
+                {studentGoal === 'kuliah' && (
+                  <span className="mt-3 inline-block rounded-full bg-indigo-600 px-3 py-1 text-xs font-bold text-white">
+                    ✓ Dipilih
+                  </span>
+                )}
+              </button>
+
+              {/* Pilihan KERJA */}
+              <button
+                type="button"
+                onClick={() => setStudentGoal('kerja')}
+                className={`rounded-2xl border-2 p-5 text-left transition ${
+                  studentGoal === 'kerja'
+                    ? 'border-emerald-500 bg-emerald-50 shadow-sm'
+                    : 'border-slate-200 bg-white hover:border-emerald-300'
+                }`}
+              >
+                <span className="text-3xl">💼</span>
+                <h3 className={`mt-3 text-lg font-black ${studentGoal === 'kerja' ? 'text-emerald-700' : 'text-slate-900'}`}>
+                  Langsung Kerja
+                </h3>
+                <p className="mt-1.5 text-xs text-slate-600 leading-relaxed">
+                  Upload CV/portofolio dan dapatkan analisis skill gap IT yang dibutuhkan sesuai bidang yang kamu minati.
+                </p>
+                <ul className="mt-3 space-y-1 text-xs text-slate-500">
+                  <li>✅ Upload CV, video, PPT, atau portofolio</li>
+                  <li>✅ Kuesioner minat bidang IT spesifik</li>
+                  <li>✅ Analisis skill yang dimiliki vs dibutuhkan</li>
+                  <li>✅ Rekomendasi kursus & sertifikasi</li>
+                </ul>
+                {studentGoal === 'kerja' && (
+                  <span className="mt-3 inline-block rounded-full bg-emerald-600 px-3 py-1 text-xs font-bold text-white">
+                    ✓ Dipilih
+                  </span>
+                )}
+              </button>
+            </div>
+            {!studentGoal && (
+              <p className="mt-4 text-xs text-amber-600 font-semibold">
+                ⚠ Pilih tujuanmu terlebih dahulu untuk melanjutkan ke langkah berikutnya.
+              </p>
+            )}
+          </div>}
+
+          {/* ── Step 3 (Jalur KERJA): Upload CV Multi-format ─────────────────── */}
+          {isPelajar && studentGoal === 'kerja' && <div hidden={currentStep !== 3} className="rounded-[24px] border border-emerald-200 bg-gradient-to-r from-emerald-50 via-white to-sky-50 p-5">
+            <p className="text-sm font-bold uppercase tracking-[0.2em] text-emerald-600">Upload CV / Portofolio</p>
+            <p className="mt-2 text-sm text-slate-600">
+              Upload dokumen CV, portofolio desain, video perkenalan diri, atau presentasi PPT yang dimiliki.
+              Format yang diterima: PDF, DOCX, PPT, PPTX, MP4, MOV, JPG, PNG.
+            </p>
+
+            <label className="mt-4 flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-emerald-300 bg-white px-4 py-8 text-sm font-semibold text-emerald-700 transition hover:border-emerald-400 hover:bg-emerald-50">
+              <input
+                type="file"
+                accept=".pdf,.doc,.docx,.ppt,.pptx,.mp4,.mov,.avi,.mkv,.webm,.jpg,.jpeg,.png,.gif,.webp"
+                className="hidden"
+                onChange={handleCvUpload}
+              />
+              <span className="text-4xl">
+                {uploadedCvType === 'video' ? '🎥' : uploadedCvType === 'ppt' ? '📊' : uploadedCvType === 'image' ? '🖼️' : '📤'}
+              </span>
+              <span>{uploadedCv ? 'Ganti file yang diunggah' : 'Klik atau seret file ke sini'}</span>
+              <span className="text-xs font-normal text-slate-500">
+                PDF, DOCX, PPT, PPTX, MP4, MOV, JPG, PNG • Maks 50 MB untuk video, 20 MB lainnya
+              </span>
+            </label>
+
+            {uploadedCv && (
+              <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                <p className="text-sm font-bold text-emerald-800">
+                  {uploadedCvType === 'video' ? '🎥' : uploadedCvType === 'ppt' ? '📊' : uploadedCvType === 'image' ? '🖼️' : '📄'}{' '}
+                  {uploadedCv}
+                </p>
+                <p className="mt-1 text-xs text-emerald-600">
+                  {(uploadedCvSize / (1024 * 1024)).toFixed(1)} MB •{' '}
+                  {uploadedCvType === 'video' ? 'Video profil/portofolio'
+                    : uploadedCvType === 'ppt' ? 'Presentasi/slide portofolio'
+                    : uploadedCvType === 'image' ? 'Gambar portofolio'
+                    : 'Dokumen CV/portofolio'} berhasil diunggah
+                </p>
+                <p className="mt-1.5 text-xs text-emerald-700">
+                  🤖 AI (Gemini) akan menganalisis konten file ini untuk mendeteksi skill dan pengalaman yang dimiliki.
+                </p>
+              </div>
+            )}
+
+            {!uploadedCv && (
+              <p className="mt-3 text-xs text-slate-500">
+                Belum ada file yang diunggah — kamu bisa melewati langkah ini dan mengisi skill secara manual di langkah berikutnya.
+              </p>
+            )}
+          </div>}
+
+          {/* ── Step 3 (Jalur KULIAH): Input Nilai Rapor ─────────────────────── */}
+          {isPelajar && studentGoal === 'kuliah' && <div hidden={currentStep !== 3} className="rounded-[24px] border border-slate-200 bg-slate-50 p-5">
+            <p className="text-sm font-bold uppercase tracking-[0.2em] text-indigo-600">Input Nilai Rapor</p>
+            <p className="mt-2 text-xs text-slate-600">
+              Masukkan nilai rapor semester terakhir (skala 0-100). Nilai ini digunakan untuk menentukan kesesuaian dengan persyaratan minimum jurusan yang direkomendasikan.
+            </p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              {Object.keys(reportGrades).map(subject => (
+                <label key={subject} className="text-xs text-slate-600 font-semibold">
+                  {subject}
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={reportGrades[subject as keyof typeof reportGrades]}
+                    onChange={(e) => setReportGrades({ ...reportGrades, [subject]: e.target.value })}
+                    className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-normal text-slate-800 focus:border-indigo-300 focus:outline-none"
+                    placeholder="0-100"
+                  />
+                </label>
+              ))}
+            </div>
+            {gradeAverage > 0 && (
+              <div className="mt-4 rounded-2xl border border-indigo-100 bg-indigo-50 p-4">
+                <p className="text-sm font-bold text-indigo-700">
+                  Rata-rata nilai rapor: <span className="text-xl font-black">{gradeAverage.toFixed(1)}</span>
+                </p>
+                <p className="mt-1 text-xs text-indigo-600">
+                  {gradeAverage >= 85 ? '🟢 Sangat baik — memenuhi syarat sebagian besar jurusan unggulan'
+                    : gradeAverage >= 75 ? '🟡 Baik — memenuhi syarat jurusan standar'
+                    : '🔴 Perlu ditingkatkan — beberapa jurusan memiliki nilai minimum 75-80'}
+                </p>
+              </div>
+            )}
+          </div>}
+
+          {/* ── Step 4 (Jalur KERJA): Kuesioner Minat Bidang IT ─────────────── */}
+          {isPelajar && studentGoal === 'kerja' && <div hidden={currentStep !== 4} className="rounded-[24px] border border-slate-200 bg-slate-50 p-5">
+            <p className="text-sm font-bold uppercase tracking-[0.2em] text-indigo-600">Pilih Bidang IT yang Diminati</p>
+            <p className="mt-2 text-xs text-slate-600">
+              Pilih bidang IT yang paling ingin kamu tekuni setelah lulus. Sistem akan menampilkan analisis skill gap yang relevan dengan bidang tersebut.
+            </p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              {[
+                { key: 'webDev', label: 'Web Development', icon: '🌐', desc: 'Membangun website & aplikasi web' },
+                { key: 'dataScience', label: 'Data Science & AI', icon: '📊', desc: 'Analisis data & machine learning' },
+                { key: 'cybersecurity', label: 'Cybersecurity', icon: '🛡️', desc: 'Keamanan siber & perlindungan sistem' },
+                { key: 'mobileDev', label: 'Mobile Development', icon: '📱', desc: 'Aplikasi iOS & Android' },
+                { key: 'uiux', label: 'UI/UX Design', icon: '🎨', desc: 'Desain tampilan & pengalaman pengguna' },
+                { key: 'cloudDevops', label: 'Cloud & DevOps', icon: '☁️', desc: 'Infrastruktur cloud & otomasi' },
+                { key: 'gameDev', label: 'Game Development', icon: '🎮', desc: 'Pengembangan game & aplikasi interaktif' },
+                { key: 'iot', label: 'IoT & Embedded', icon: '⚙️', desc: 'Perangkat cerdas & mikrokontroler' },
+              ].map(field => (
+                <button
+                  key={field.key}
+                  type="button"
+                  onClick={() => setItJobInterest(field.key)}
+                  className={`rounded-2xl border p-4 text-left transition ${
+                    itJobInterest === field.key
+                      ? 'border-indigo-400 bg-indigo-50 shadow-sm'
+                      : 'border-slate-200 bg-white hover:border-indigo-200'
+                  }`}
+                >
+                  <span className="text-2xl">{field.icon}</span>
+                  <p className={`mt-2 text-sm font-bold ${itJobInterest === field.key ? 'text-indigo-700' : 'text-slate-800'}`}>
+                    {field.label}
+                  </p>
+                  <p className="mt-0.5 text-xs text-slate-500">{field.desc}</p>
+                  {itJobInterest === field.key && (
+                    <span className="mt-2 inline-block rounded-full bg-indigo-600 px-2.5 py-0.5 text-[10px] font-bold text-white">
+                      ✓ Dipilih
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>}
+
+          {/* ── Step 4 (Jalur KULIAH): Kuesioner Holland Code RIASEC ─────────── */}
+          {isPelajar && studentGoal === 'kuliah' && <div hidden={currentStep !== 4} className="rounded-[24px] border border-slate-200 bg-slate-50 p-5">
+            <p className="text-sm font-bold uppercase tracking-[0.2em] text-indigo-600">Kuesioner Minat Holland Code (RIASEC)</p>
+            <p className="mt-1 text-xs text-slate-500">
+              Berbasis riset Holland (1997) — digunakan oleh BK/Counselor di seluruh dunia untuk menentukan arah karier dan studi.
+            </p>
+            <div className="mt-4">
+              <HollandAssessment reportMatchScore={87} studentMajor={studentProfile.major} gradeAverage={gradeAverage} />
+            </div>
+          </div>}
+
+          {/* ── Step 5 (Jalur KERJA): Skill Check / Analisis Gap IT ─────────── */}
+          {isPelajar && studentGoal === 'kerja' && <div hidden={currentStep !== 5} className="rounded-[24px] border border-slate-200 bg-slate-50 p-5">
+            <p className="text-sm font-bold uppercase tracking-[0.2em] text-indigo-600">Analisis Skill Gap IT</p>
+            <p className="mt-1 text-xs text-slate-500">
+              Centang skill yang sudah kamu miliki. Sistem akan menampilkan gap antara skill-mu dan kebutuhan industri.
+            </p>
+            <div className="mt-4">
+              <SkillGapAnalysis selectedField={itJobInterest} />
+            </div>
+          </div>}
+
+
 
           <div hidden={currentStep !== 1 && currentStep !== 4} className="grid gap-5 md:grid-cols-2">
             <div>

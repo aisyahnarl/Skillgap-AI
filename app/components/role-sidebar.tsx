@@ -49,14 +49,14 @@ const navigationByRole: Record<Role, NavigationItem[]> = {
     { label: 'Ringkasan Bimbingan', href: '/lecturer', icon: '▦' },
     { label: 'Mahasiswa Bimbingan', href: '/lecturer', icon: '◎' },
     { label: 'Peta Kompetensi', href: '/dashboard/skill-gap', icon: '⌁' },
-    { label: 'Laporan Bimbingan', href: '/admin/reports', icon: '▤' },
+    { label: 'Laporan Bimbingan', href: '/lecturer/reports', icon: '▤' },
     { label: 'Profil Dosen', href: '/dashboard/profile', icon: '⚙' },
   ],
   'Guru BK': [
     { label: 'Ringkasan Konseling', href: '/counselor', icon: '▦' },
     { label: 'Pelajar Bimbingan', href: '/counselor', icon: '◎' },
     { label: 'Peta Minat Siswa', href: '/dashboard/skill-gap', icon: '⌁' },
-    { label: 'Laporan Konseling', href: '/admin/reports', icon: '▤' },
+    { label: 'Laporan Konseling', href: '/counselor/reports', icon: '▤' },
     { label: 'Profil Guru BK', href: '/dashboard/profile', icon: '⚙' },
   ],
 };
