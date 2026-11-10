@@ -68,6 +68,11 @@ describe('Auth Service & Role Management (Bab 11 Security)', () => {
     expect(() => authService.logout()).not.toThrow();
   });
 
+  it('handles getDashboardStats safely when backend is offline or online', async () => {
+    const stats = await authService.getDashboardStats();
+    expect(stats === null || typeof stats === 'object').toBe(true);
+  });
+
   it('creates, updates, and deletes users safely', () => {
     const newUser = {
       name: 'Test Candidate',
