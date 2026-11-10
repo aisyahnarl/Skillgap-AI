@@ -12,6 +12,98 @@ const recommendationInputSchema = z.object({
   skillLevels: z.record(z.string(), z.enum(['Beginner', 'Basic', 'Intermediate', 'Advanced', 'Expert'])).optional(),
 });
 
+// ============================================================
+// VECTOR COSINE SIMILARITY ENGINE
+// Sesuai spesifikasi SKPL: Vector Space Model & Cosine Similarity
+// Formula: Cosine(u, r) = (u · r) / (||u|| × ||r||)
+// ============================================================
+
+/** Pemetaan level skill ke skor numerik [0–1] sebagai komponen vektor */
+const LEVEL_SCORE: Record<string, number> = {
+  Beginner: 0.25,
+  Basic: 0.40,
+  Intermediate: 0.60,
+  Advanced: 0.80,
+  Expert: 0.95,
+};
+
+/**
+ * Membangun vektor multi-hot berbobot dari daftar skill yang dimiliki user.
+ * Setiap dimensi vektor merepresentasikan satu kompetensi dari katalog.
+ * Nilai dimensi = skor level skill (0 jika skill tidak dimiliki).
+ */
+function buildUserVector(
+  catalogSkills: string[],
+  selectedSkills: string[],
+  skillLevels?: Record<string, string>,
+): number[] {
+  return catalogSkills.map((catalogSkill) => {
+    const normalizedCatalog = catalogSkill.toLowerCase();
+    const matchedSkill = selectedSkills.find((s) =>
+      normalizedCatalog.includes(s.toLowerCase().split(/\s+/)[0] ?? s.toLowerCase()) ||
+      s.toLowerCase().includes(normalizedCatalog.split(/\s+/)[0] ?? normalizedCatalog),
+    );
+    if (!matchedSkill) return 0;
+    const level = skillLevels?.[matchedSkill] ?? 'Beginner';
+    return LEVEL_SCORE[level] ?? 0.25;
+  });
+}
+
+/**
+ * Membangun vektor persyaratan industri dari katalog kompetensi.
+ * Nilai dimensi = bobot permintaan industri (dinormalisasi ke skala 0–1).
+ */
+function buildRequirementVector(
+  catalogSkills: string[],
+  competencies: Array<{ nama_skill: string; bobot_permintaan: number }>,
+): number[] {
+  return catalogSkills.map((catalogSkill) => {
+    const comp = competencies.find((c) => c.nama_skill === catalogSkill);
+    return comp ? comp.bobot_permintaan / 100 : 0.5;
+  });
+}
+
+/**
+ * Menghitung Cosine Similarity antara dua vektor numerik.
+ * Implementasi: Cosine(u, r) = dot(u, r) / (norm(u) * norm(r))
+ * Mengembalikan nilai 0.0–1.0
+ */
+function cosineSimilarity(vectorU: number[], vectorR: number[]): number {
+  const dotProduct = vectorU.reduce((sum, val, i) => sum + val * (vectorR[i] ?? 0), 0);
+  const normU = Math.sqrt(vectorU.reduce((sum, val) => sum + val * val, 0));
+  const normR = Math.sqrt(vectorR.reduce((sum, val) => sum + val * val, 0));
+  if (normU === 0 || normR === 0) return 0;
+  return dotProduct / (normU * normR);
+}
+
+/**
+ * Menghitung skor kesiapan kuesioner dari respons Likert (skala 1–5).
+ * Bobot questionnaire sebesar 20% dari match score total.
+ */
+function questionnaireReadinessScore(questionnaire: Record<string, number>): number {
+  const values = Object.values(questionnaire);
+  if (values.length === 0) return 0.6;
+  const avg = values.reduce((sum, v) => sum + v, 0) / values.length;
+  return avg / 5; // normalisasi ke rentang 0–1
+}
+
+/**
+ * Menghitung Match Score akhir dengan formula gabungan:
+ *   matchScore = (cosine × 0.80 + questionnaireReadiness × 0.20) × 100
+ * Diklem ke rentang [45, 98] untuk realisme skor.
+ */
+function computeMatchScore(
+  cosine: number,
+  questionnaire: Record<string, number>,
+): number {
+  const readiness = questionnaireReadinessScore(questionnaire);
+  const raw = cosine * 0.80 + readiness * 0.20;
+  return Math.round(Math.max(45, Math.min(98, raw * 100)));
+}
+
+// ============================================================
+// CERTIFICATION CATALOG
+// ============================================================
 const certificationCatalog: Record<string, { provider: string; description: string; targetLevel: string; duration: string; officialUrl: string | null; prerequisites: string }> = {
   'Google Data Analytics': { provider: 'Google / Coursera', description: 'Fondasi analisis data, spreadsheet, SQL, dan visualisasi Tableau.', targetLevel: 'Pemula - Menengah', duration: '6 bulan', officialUrl: 'https://www.coursera.org/professional-certificates/google-data-analytics', prerequisites: 'Tidak ada prasyarat formal.' },
   'Microsoft PL-300': { provider: 'Microsoft', description: 'Analisis data, pemodelan data relasional, dan pelaporan Power BI.', targetLevel: 'Menengah', duration: '3-4 bulan', officialUrl: 'https://learn.microsoft.com/credentials/certifications/power-bi-data-analyst-associate/', prerequisites: 'Pengalaman dasar data dan SQL direkomendasikan.' },
@@ -28,29 +120,52 @@ const certificationCatalog: Record<string, { provider: string; description: stri
   'Microsoft AZ-900': { provider: 'Microsoft', description: 'Fondasi konsep cloud computing, model layanan Azure, dan tata kelola keamanan.', targetLevel: 'Pemula', duration: '1.5 bulan persiapan', officialUrl: 'https://learn.microsoft.com/certifications/exams/az-900/', prerequisites: 'Tidak ada prasyarat.' },
 };
 
+// ============================================================
+// MAIN API HANDLER
+// ============================================================
 export async function POST(request: Request) {
   if (!hasSession(request)) return NextResponse.json({ success: false, message: 'Session required.' }, { status: 401 });
   try {
     const input = recommendationInputSchema.parse(await request.json());
-    const values = Object.values(input.questionnaire);
-    const average = values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 3;
-    const matchScore = Math.max(60, Math.min(98, Math.round(62 + average * 5 + input.selectedSkills.length * 3)));
-    const skillGap = Math.max(4, Math.min(40, 100 - matchScore));
     const isStudentPath = input.jenjang.includes('Pelajar');
     const competencies = listCompetencies();
+
+    // ----------------------------------------------------------
+    // 1. Susun ruang vektor: dimensi = seluruh skill di katalog
+    // ----------------------------------------------------------
+    const catalogSkills = competencies.map((c) => c.nama_skill);
+
+    // 2. Bangun vektor profil user (u) dan vektor kebutuhan industri (r)
+    const userVector = buildUserVector(catalogSkills, input.selectedSkills, input.skillLevels);
+    const requirementVector = buildRequirementVector(catalogSkills, competencies);
+
+    // 3. Hitung Cosine Similarity antara vektor user dan vektor industri
+    const cosine = cosineSimilarity(userVector, requirementVector);
+
+    // 4. Hitung Match Score gabungan: 80% cosine + 20% questionnaire readiness
+    const matchScore = computeMatchScore(cosine, input.questionnaire);
+    const skillGap = Math.max(2, Math.min(55, 100 - matchScore));
+
+    // ----------------------------------------------------------
+    // 5. Filter kompetensi yang relevan dengan target & skill user
+    // ----------------------------------------------------------
     const firstWord = (value: string) => value.trim().split(/\s+/)[0] ?? value;
     const matchingCompetencies = competencies.filter((competency) => {
       const searchText = `${competency.name} ${competency.roles.join(' ')}`.toLowerCase();
       return input.selectedSkills.some((skill) => searchText.includes(firstWord(skill.toLowerCase())))
         || searchText.includes(firstWord(input.target.toLowerCase()));
     });
+
+    // 6. Analisis skill gap per kompetensi menggunakan skor vektor
     const skillAnalysis = (matchingCompetencies.length ? matchingCompetencies : competencies).slice(0, 6).map((competency) => {
       const level = input.skillLevels?.[competency.nama_skill] ?? 'Beginner';
-      const levelScore = { Beginner: 25, Basic: 40, Intermediate: 60, Advanced: 80, Expert: 95 }[level];
+      const levelScore = Math.round((LEVEL_SCORE[level] ?? 0.25) * 100);
       const required = Math.max(60, competency.bobot_permintaan);
       const gap = Math.max(0, required - levelScore);
       return { skill: competency.nama_skill, category: competency.kategori, current: levelScore, required, gap, status: gap >= 25 ? 'Gap' : gap > 0 ? 'Developing' : 'Strong' };
     });
+
+    // 7. Rekomendasi sertifikasi berbobot berdasarkan gap terbesar
     const certifications = (matchingCompetencies.length ? matchingCompetencies : competencies)
       .flatMap((competency) => competency.certifications.map((name) => {
         const detail = certificationCatalog[name];
@@ -66,6 +181,8 @@ export async function POST(request: Request) {
         primarySkill: input.selectedSkills[0] ?? input.target,
         matchScore,
         skillGap,
+        // Metadata debug cosine similarity untuk transparansi
+        _cosineSimilarity: Math.round(cosine * 10000) / 10000,
         skillAnalysis,
         strengths: isStudentPath
           ? ['Peta minat dan bakat berhasil dipetakan', 'Potensi belajar lintas bidang', 'Target studi dapat dikembangkan']
