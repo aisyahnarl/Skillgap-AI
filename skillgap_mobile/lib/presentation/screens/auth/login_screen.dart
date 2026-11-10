@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../data/services/api_service.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_text_field.dart';
 import '../main_screen.dart';
@@ -35,7 +36,11 @@ class _LoginScreenState extends State<LoginScreen> {
       _errorMessage = null;
     });
 
-    await Future.delayed(const Duration(milliseconds: 600));
+    // Coba autentikasi via live FastAPI Backend jika aktif
+    final apiResult = await ApiService.login(email, password);
+    if (apiResult == null) {
+      await Future.delayed(const Duration(milliseconds: 500));
+    }
 
     if (mounted) {
       setState(() {

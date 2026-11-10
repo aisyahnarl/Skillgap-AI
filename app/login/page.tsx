@@ -34,7 +34,8 @@ export default function LoginPage() {
 
     try {
       // Mengirim data login ke backend FastAPI
-      const res = await fetch('http://127.0.0.1:8000/api/login', {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+      const res = await fetch(`${apiUrl}/api/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: form.email, password: form.password }),
@@ -43,13 +44,26 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        // Jika gagal (email/password salah), tampilkan pesan error dari FastAPI
+        // Cek fallback ke local authService jika akun dibuat secara offline/demo
+        const localUser = authService.login(form.email, form.password);
+        if (localUser) {
+          const role = localUser.role || 'Mahasiswa';
+          setMessage(`Login berhasil sebagai ${role}. Mengarahkan ke workspace...`);
+          setTimeout(() => {
+            if (role === 'Admin') router.push('/admin');
+            else if (role === 'Dosen') router.push('/lecturer');
+            else if (role === 'Guru BK') router.push('/counselor');
+            else router.push('/dashboard');
+          }, 400);
+          return;
+        }
+
         setError(data.detail || 'Email atau password salah.');
         setIsLoading(false);
         return;
       }
 
-      // Jika berhasil, tentukan role dan simpan ke sesi
+      // Jika berhasil dari FastAPI
       const role = data.user.role || 'Mahasiswa';
       
       authService.setSession({
@@ -67,9 +81,22 @@ export default function LoginPage() {
         else router.push('/dashboard');
       }, 400);
 
-    } catch (err) {
-      setError('Gagal menghubungi server. Pastikan server FastAPI menyala.');
-      setIsLoading(false);
+    } catch {
+      // Fallback otomatis saat server FastAPI offline (misal pada demo Vercel)
+      const localUser = authService.login(form.email, form.password);
+      if (localUser) {
+        const role = localUser.role || 'Mahasiswa';
+        setMessage(`Login berhasil sebagai ${role}. Mengarahkan ke workspace...`);
+        setTimeout(() => {
+          if (role === 'Admin') router.push('/admin');
+          else if (role === 'Dosen') router.push('/lecturer');
+          else if (role === 'Guru BK') router.push('/counselor');
+          else router.push('/dashboard');
+        }, 400);
+      } else {
+        setError('Email atau password salah. Pastikan kredensial Anda benar.');
+        setIsLoading(false);
+      }
     }
   };
 

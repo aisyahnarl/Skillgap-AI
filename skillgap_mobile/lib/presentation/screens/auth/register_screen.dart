@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../data/services/api_service.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_text_field.dart';
 import '../main_screen.dart';
@@ -64,7 +65,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _errorMessage = null;
     });
 
-    await Future.delayed(const Duration(milliseconds: 600));
+    // Coba registrasi ke FastAPI Backend secara live
+    final apiResult = await ApiService.register(
+      name: name,
+      email: email,
+      password: password,
+      role: _selectedRole,
+      jenjang: _selectedJenjang,
+      parentalConsent: _parentalConsent,
+    );
+    if (apiResult == null) {
+      await Future.delayed(const Duration(milliseconds: 500));
+    }
 
     if (mounted) {
       setState(() {

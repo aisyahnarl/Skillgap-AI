@@ -117,6 +117,14 @@ export const authService = {
     return { success: true };
   },
 
+  login(email: string, password?: string): UserProfile | null {
+    const users = this.getAllUsers();
+    const found = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
+    if (!found) return null;
+    if (password && found.password && found.password !== password) return null;
+    return found;
+  },
+
   updateUser(email: string, updates: Partial<UserProfile>): { success: boolean; user?: UserProfile } {
     const users = this.getAllUsers();
     const index = users.findIndex((u) => u.email.toLowerCase() === email.toLowerCase());
@@ -186,7 +194,8 @@ export const authService = {
   },
   async getDashboardStats() {
     try {
-      const res = await fetch('http://127.0.0.1:8000/api/dashboard');
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+      const res = await fetch(`${apiUrl}/api/dashboard`);
       if (!res.ok) throw new Error('Gagal mengambil data');
       return await res.json();
     } catch (error) {
