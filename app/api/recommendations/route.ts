@@ -46,28 +46,33 @@ function buildUserVector(
   skillLevels?: Record<string, string>,
 ): number[] {
   const targetLower = targetRole.toLowerCase();
+  const levels = skillLevels || {};
 
   return competencies.map((comp) => {
     const compName = comp.nama_skill;
-    const keywords = SKILL_DOMAIN_MAP[compName] ?? [compName.toLowerCase()];
-    const compRoles = comp.roles.map((r) => r.toLowerCase());
+    const keywords = SKILL_DOMAIN_MAP[compName] || [compName.toLowerCase()];
+    const compRoles = comp.roles;
 
-    // Cek kecocokan target role terhadap kompetensi
-    const roleMatch = compRoles.some((r) => targetLower.includes(r.split(' ')[0] ?? '') || r.includes(targetLower.split(' ')[0] ?? ''));
+    let roleMatch = false;
+    for (const r of compRoles) {
+      const rLower = r.toLowerCase();
+      if (targetLower.includes(rLower) || rLower.includes(targetLower)) {
+        roleMatch = true;
+        break;
+      }
+    }
 
-    // Cek kecocokan selectedSkills pengguna
     let bestScore = 0.0;
     for (const skill of selectedSkills) {
       const sLower = skill.toLowerCase();
-      const isMatch = keywords.some((kw) => sLower.includes(kw) || kw.includes(sLower.split(' ')[0] ?? ''));
+      const isMatch = keywords.some((kw) => sLower.includes(kw) || kw.includes(sLower));
       if (isMatch) {
-        const level = skillLevels?.[skill] ?? (skillLevels?.[compName] ?? 'Intermediate');
-        const score = LEVEL_SCORE[level] ?? 0.65;
+        const level = levels[skill] || levels[compName] || 'Intermediate';
+        const score = LEVEL_SCORE[level] || 0.65;
         if (score > bestScore) bestScore = score;
       }
     }
 
-    // Jika target role sangat relevan namun skill belum diinput spesifik, berikan baseline eksplorasi
     if (bestScore === 0 && roleMatch) {
       bestScore = 0.40;
     }
