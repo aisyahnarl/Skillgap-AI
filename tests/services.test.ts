@@ -134,6 +134,11 @@ describe('Assessment Service (Bab 4 & Bab 12)', () => {
       report: defaultStudentReport,
     };
     expect(() => assessmentService.addHistory(newItem)).not.toThrow();
+
+    // Exercise updateUserProgress method and branches
+    assessmentService.updateUserProgress('nadia@email.com', 50, 'Fase 2 Berjalan');
+    assessmentService.updateUserProgress('unknown-user@email.com', 20);
+    assessmentService.updateUserProgress('', 0);
   });
 });
 
