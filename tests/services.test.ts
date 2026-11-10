@@ -740,6 +740,7 @@ describe('BFF API Endpoints Integration (Bab 12 REST API)', async () => {
         target: 'Data Science',
         selectedSkills: ['Python', 'SQL & Database'],
         questionnaire: { q1: 4, q2: 5, q3: 4, q4: 5, q5: 4 },
+        skillLevels: { 'Python': 'Advanced', 'Analisis Data': 'Advanced' },
       }),
     }));
     expect(recRes.status).toBe(200);
@@ -748,6 +749,24 @@ describe('BFF API Endpoints Integration (Bab 12 REST API)', async () => {
     expect(body.data.matchScore).toBeGreaterThanOrEqual(60);
     expect(body.data.roadmap.length).toBeGreaterThan(0);
     expect(body.data.certifications.length).toBeGreaterThan(0);
+
+    // Test student path & empty questionnaire fallback branch
+    const studentRecRes = await postRecommendationsRoute(new Request('http://localhost/api/recommendations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...userHeaders },
+      body: JSON.stringify({
+        role: 'Pelajar',
+        jenjang: 'Pelajar SMA/SMK',
+        target: 'Junior Web Developer',
+        selectedSkills: ['HTML5', 'CSS'],
+        questionnaire: {},
+      }),
+    }));
+    expect(studentRecRes.status).toBe(200);
+    const studentBody = await studentRecRes.json();
+    expect(studentBody.success).toBe(true);
+    expect(studentBody.data.strengths.length).toBeGreaterThan(0);
+    expect(studentBody.data.jobOpenings[0].title).toBe('Jalur studi lanjut');
   });
 });
 

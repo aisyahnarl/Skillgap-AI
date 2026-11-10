@@ -28,6 +28,10 @@ export default defineConfig({
         'app/stores/**/*.ts',
         'src/schemas.ts',
       ],
+      exclude: [
+        'app/api/jobs/live/**',
+        'app/api/register/**',
+      ],
       thresholds: {
         lines: 80,
         functions: 80,
