@@ -293,8 +293,8 @@ export const assessmentService = {
             submittedAt: row.submitted_at || new Date().toISOString(),
             userName: row.name,
             target: row.target,
-            matchScore: parseInt(row.match, 10) || 85,
-            skillGap: 100 - (parseInt(row.match, 10) || 85),
+            matchScore: Number.parseInt(row.match, 10) || 85,
+            skillGap: 100 - (Number.parseInt(row.match, 10) || 85),
             role: row.category,
             jenjang: row.category,
             report: defaultStudentReport,
@@ -328,8 +328,8 @@ export const assessmentService = {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: item.userName || 'Pengguna',
-          category: item.jenjang || item.role || 'Mahasiswa',
+          name: item.userName ?? 'Pengguna',
+          category: item.jenjang ?? item.role ?? 'Mahasiswa',
           target: item.target,
         }),
       }).catch((err) => console.warn('[Assessment DB Sync Warning]:', err));
@@ -342,14 +342,14 @@ export const assessmentService = {
       const history = this.getHistory();
       let matched = false;
       const updated = history.map((item) => {
-        const matchEmail = item.userEmail && item.userEmail.toLowerCase() === userEmailOrName.toLowerCase();
-        const matchName = item.userName && item.userName.toLowerCase() === userEmailOrName.toLowerCase();
+        const matchEmail = (item.userEmail?.toLowerCase() ?? '') === userEmailOrName.toLowerCase();
+        const matchName = (item.userName?.toLowerCase() ?? '') === userEmailOrName.toLowerCase();
         if ((matchEmail || matchName) && !matched) {
           matched = true;
           return {
             ...item,
             progressPercentage,
-            roadmapStatus: roadmapStatus || item.roadmapStatus || `Progres Belajar: ${progressPercentage}%`,
+            roadmapStatus: roadmapStatus ?? item.roadmapStatus ?? `Progres Belajar: ${progressPercentage}%`,
             lastUpdated: new Date().toISOString(),
           };
         }

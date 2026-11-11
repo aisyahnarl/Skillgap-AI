@@ -83,7 +83,7 @@ function JobsPageContent() {
     }
 
     // Load Live IT Jobs feed
-    fetchLiveJobs();
+    void fetchLiveJobs();
   }, [initialJobId]);
 
   const fetchLiveJobs = async (customKeyword = '') => {
@@ -267,7 +267,7 @@ function JobsPageContent() {
             type="button"
             onClick={() => {
               setActiveTab('live');
-              fetchLiveJobs(searchQuery);
+              void fetchLiveJobs(searchQuery);
             }}
             className={`rounded-full px-4 py-2 text-xs font-bold transition flex items-center gap-1.5 ${
               activeTab === 'live'

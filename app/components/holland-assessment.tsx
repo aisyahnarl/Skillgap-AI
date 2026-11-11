@@ -158,7 +158,7 @@ const majorRecommendations: Record<string, {
 // Fungsi untuk mendapatkan top 2 Holland Code berdasarkan skor
 function getTopHollandCodes(scores: Record<string, number>): string {
   const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
-  const top2 = sorted.slice(0, 2).map(([code]) => code).sort().join('');
+  const top2 = sorted.slice(0, 2).map(([code]) => code).sort((a, b) => a.localeCompare(b)).join('');
   return top2;
 }
 

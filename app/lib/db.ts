@@ -5,7 +5,14 @@ let isConnected = false;
 
 export function getDbPool(): Pool | null {
   const connectionString = process.env.DATABASE_URL;
-  if (!connectionString || connectionString.includes('username:password')) {
+  if (
+    !connectionString ||
+    connectionString === 'undefined' ||
+    !connectionString.startsWith('postgres') ||
+    connectionString.includes('username:password') ||
+    connectionString.includes('yourpassword') ||
+    connectionString.includes('xxxxxx')
+  ) {
     return null;
   }
 
@@ -56,4 +63,8 @@ export async function query<T extends QueryResultRow = any>(
 
 export function isDbConnected(): boolean {
   return isConnected;
+}
+
+export function setDbPool(newPool: Pool | null): void {
+  pool = newPool;
 }

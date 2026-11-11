@@ -14,7 +14,9 @@ import {
 import { buildPromptForJenjang, callRealLLM } from '../app/lib/llm-service';
 import * as dbModule from '../app/lib/db';
 import { getDbPool, query, isDbConnected } from '../app/lib/db';
-import { assessmentService } from '../app/services/assessment-service';
+import { assessmentService, defaultStudentReport } from '../app/services/assessment-service';
+import { emailService } from '../app/services/email-service';
+import { roadmapService, calculatePhaseStatus } from '../app/services/roadmap-service';
 import { GET as getAssessments, POST as postAssessments } from '../app/api/assessments/route';
 import { POST as uploadDocument } from '../app/api/documents/upload/route';
 import { POST as apiLogin } from '../app/api/login/route';
@@ -387,11 +389,180 @@ describe('Item 4: LLM Service & Header Authentication', () => {
 });
 
 describe('Item 6: Database Storage & API Endpoints Integration', () => {
-  it('manages database pool and safe query fallback', async () => {
-    const pool = getDbPool();
-    const res = await query('SELECT 1');
-    expect(res === null || res.rows.length >= 0).toBe(true);
-    expect(typeof isDbConnected()).toBe('boolean');
+  it('manages database pool and safe query fallback across all configurations', async () => {
+    const oldUrl = process.env.DATABASE_URL;
+    try {
+      // 1. null on invalid / placeholder url
+      process.env.DATABASE_URL = 'postgresql://username:password@localhost:5432/db';
+      dbModule.setDbPool(null);
+      expect(dbModule.getDbPool()).toBeNull();
+      expect(await dbModule.query('SELECT 1')).toBeNull();
+
+      // 2. valid connection string with neon.tech (triggers ssl branch)
+      process.env.DATABASE_URL = 'postgresql://app:pass@ep-test.neon.tech/neondb';
+      dbModule.setDbPool(null);
+      const pool = dbModule.getDbPool();
+      expect(pool).not.toBeNull();
+
+      // Test error event on pool
+      pool?.emit('error', new Error('Mock pool connection drop'));
+      expect(dbModule.isDbConnected()).toBe(false);
+
+      // Mock pool.query success
+      if (pool) {
+        vi.spyOn(pool, 'query').mockResolvedValueOnce({ rows: [{ num: 42 }], rowCount: 1 } as any);
+        const qRes = await dbModule.query('SELECT 42');
+        expect(qRes?.rows[0].num).toBe(42);
+        expect(dbModule.isDbConnected()).toBe(true);
+
+        // Mock pool.query error fallback
+        vi.spyOn(pool, 'query').mockRejectedValueOnce(new Error('Query timeout'));
+        const errRes = await dbModule.query('SELECT 99');
+        expect(errRes).toBeNull();
+        expect(dbModule.isDbConnected()).toBe(false);
+      }
+    } finally {
+      if (oldUrl) {
+        process.env.DATABASE_URL = oldUrl;
+      } else {
+        delete process.env.DATABASE_URL;
+      }
+      dbModule.setDbPool(null);
+    }
+  });
+
+  it('exercises full assessmentService operations in browser-like environment', async () => {
+    const oldWindow = (globalThis as any).window;
+    const oldDoc = (globalThis as any).document;
+    const oldStorage = (globalThis as any).localStorage;
+    const oldFetch = global.fetch;
+
+    const store: Record<string, string> = {};
+    (globalThis as any).window = {
+      location: { protocol: 'https:', origin: 'https://skillgap.ai' },
+    };
+    (globalThis as any).document = { cookie: '' };
+    (globalThis as any).localStorage = {
+      getItem: (k: string) => store[k] ?? null,
+      setItem: (k: string, v: string) => { store[k] = v; },
+      removeItem: (k: string) => { delete store[k]; },
+    };
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, data: [{ id: '1', name: 'Test', match: '90%', target: 'IT' }] }),
+    });
+
+    try {
+      // 1. getHistory with seed
+      const hist = assessmentService.getHistory();
+      expect(hist.length).toBeGreaterThan(0);
+
+      // 2. addHistory (triggers localStorage set and fetch sync)
+      assessmentService.addHistory({
+        id: 'test-item-1',
+        submittedAt: new Date().toISOString(),
+        userName: 'Aisyah',
+        userEmail: 'aisyah@test.com',
+        target: 'AI Engineer',
+        matchScore: 95,
+        skillGap: 5,
+        report: defaultStudentReport,
+      });
+
+      // 3. getById
+      expect(assessmentService.getById('test-item-1')).not.toBeNull();
+      expect(assessmentService.getById('non-existent')).toBeNull();
+
+      // 4. updateUserProgress
+      assessmentService.updateUserProgress('aisyah@test.com', 75, 'Fase 2 Belajar');
+      const updated = assessmentService.getById('test-item-1');
+      expect(updated?.progressPercentage).toBe(75);
+
+      // 5. getActiveReport & setActiveReport
+      assessmentService.setActiveReport(defaultStudentReport);
+      expect(assessmentService.getActiveReport().primarySkill).toBe(defaultStudentReport.primarySkill);
+
+      // 6. activateSnapshot
+      const act = assessmentService.activateSnapshot('test-item-1');
+      expect(act).not.toBeNull();
+      expect(assessmentService.activateSnapshot('invalid-id')).toBeNull();
+
+      // 7. syncFromApi
+      const synced = await assessmentService.syncFromApi();
+      expect(synced.length).toBeGreaterThan(0);
+
+      // 8. syncFromApi error branch
+      (global.fetch as any).mockRejectedValueOnce(new Error('Network error'));
+      const fallbackSynced = await assessmentService.syncFromApi();
+      expect(Array.isArray(fallbackSynced)).toBe(true);
+    } finally {
+      (globalThis as any).window = oldWindow;
+      (globalThis as any).document = oldDoc;
+      (globalThis as any).localStorage = oldStorage;
+      global.fetch = oldFetch;
+    }
+  });
+
+  it('covers roadmapService and emailService SMTP branches', async () => {
+    // 1. calculatePhaseStatus branches
+    expect(calculatePhaseStatus({
+      phase: 'P1',
+      title: 'T1',
+      goal: 'G1',
+      duration: '4w',
+      skills: ['JS'],
+      resources: ['Docs'],
+      certification: 'Cert',
+      project: 'Proj',
+      status: 'In Progress',
+      tasks: [{ label: 'Task 1', completed: false }]
+    })).toBe('In Progress');
+
+    expect(calculatePhaseStatus({
+      phase: 'P1',
+      title: 'T1',
+      goal: 'G1',
+      duration: '4w',
+      skills: ['JS'],
+      resources: ['Docs'],
+      certification: 'Cert',
+      project: 'Proj',
+      status: 'Not Started',
+      tasks: [{ label: 'Task 1', completed: false }]
+    })).toBe('Not Started');
+
+    expect(calculatePhaseStatus({
+      phase: 'P1',
+      title: 'T1',
+      goal: 'G1',
+      duration: '4w',
+      skills: ['JS'],
+      resources: ['Docs'],
+      certification: 'Cert',
+      project: 'Proj',
+      status: 'In Progress',
+      tasks: [{ label: 'Task 1', completed: true }]
+    })).toBe('Completed');
+
+    // 2. emailService SMTP branch
+    const oldSmtp = process.env.SMTP_HOST;
+    try {
+      process.env.SMTP_HOST = 'smtp.sendgrid.net';
+      const mailRes = await emailService.sendEmail({
+        to: 'user@example.com',
+        category: 'welcome',
+        subject: 'Selamat Datang',
+        html: '<p>Halo</p>',
+      });
+      expect(mailRes.success).toBe(true);
+    } finally {
+      if (oldSmtp) {
+        process.env.SMTP_HOST = oldSmtp;
+      } else {
+        delete process.env.SMTP_HOST;
+      }
+    }
   });
 
   it('GET and POST /api/assessments connects to storage with session check', async () => {

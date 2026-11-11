@@ -491,7 +491,7 @@ export default function AssessmentForm() {
       reportGrades: isPelajar ? reportGrades : undefined,
       careerAspiration: studentProfile.aspiration || form.target,
       studentGoal: isPelajar ? studentGoal : undefined,
-      nim: !isPelajar ? 'MHS-' + Math.floor(1000000000 + Math.random() * 9000000000) : undefined,
+      nim: !isPelajar ? `MHS-${typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID().replace(/\D/g, '').padEnd(10, '7').slice(0, 10) : String(Date.now()).slice(-10)}` : undefined,
       programStudi: !isPelajar ? (form.target || 'Informatika') : undefined,
       report: fullReport,
     });

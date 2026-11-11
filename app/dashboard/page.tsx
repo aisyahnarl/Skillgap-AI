@@ -69,7 +69,7 @@ export default function DashboardPage() {
         setBackendData(data);
       }
     };
-    loadBackendData();
+    void loadBackendData();
   }, []);
 
   const metrics = useMemo(

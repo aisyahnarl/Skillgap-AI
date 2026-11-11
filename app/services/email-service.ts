@@ -18,7 +18,10 @@ export const emailService = {
    * Mengirim email transaksional (Mendukung SMTP / Resilient Log Simulation)
    */
   async sendEmail(payload: EmailPayload): Promise<{ success: boolean; messageId: string }> {
-    const messageId = `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const randPart = typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID().slice(0, 8)
+      : Date.now().toString(36);
+    const messageId = `msg-${Date.now()}-${randPart}`;
     
     // Periksa apakah kredensial SMTP tersedia di environment
     const smtpHost = process.env.SMTP_HOST;
