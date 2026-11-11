@@ -581,7 +581,7 @@ export default function AssessmentForm() {
             <div className="mt-4 rounded-2xl border border-indigo-100 bg-indigo-50/70 p-4 text-sm text-indigo-700">
               {uploadedCv
                 ? `✅ File berhasil diunggah · ${uploadedCv} · ${(uploadedCvSize / (1024 * 1024)).toFixed(1)} MB${uploadedCvType ? ` · Tipe: ${uploadedCvType.toUpperCase()}` : ''}`
-                : 'Belum ada file yang diunggah. AI (Gemini) akan membaca dan menganalisis konten dokumen/video kamu secara langsung.'}
+                : 'Belum ada file yang diunggah. AI (Gemini) akan membaca dan menganalisis konten dokumen portofolio kamu secara langsung.'}
             </div>
           </div>}
 
@@ -640,7 +640,7 @@ export default function AssessmentForm() {
                   Upload CV/portofolio dan dapatkan analisis skill gap IT yang dibutuhkan sesuai bidang yang kamu minati.
                 </p>
                 <ul className="mt-3 space-y-1 text-xs text-slate-500">
-                  <li>✅ Upload CV, video, PPT, atau portofolio</li>
+                  <li>✅ Upload CV, portofolio, atau PPT</li>
                   <li>✅ Kuesioner minat bidang IT spesifik</li>
                   <li>✅ Analisis skill yang dimiliki vs dibutuhkan</li>
                   <li>✅ Rekomendasi kursus & sertifikasi</li>

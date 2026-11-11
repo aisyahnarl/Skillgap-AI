@@ -141,8 +141,8 @@ describe('src/schemas branded types and validation (Bab 5 Strict TypeScript)', a
 });
 
 describe('assessment BFF route', () => {
-  it('rejects requests without a session', () => {
-    const response = GET(new Request('http://localhost/api/assessments'));
+  it('rejects requests without a session', async () => {
+    const response = await GET(new Request('http://localhost/api/assessments'));
     expect(response.status).toBe(401);
   });
 
@@ -155,7 +155,7 @@ describe('assessment BFF route', () => {
   });
 
   it('returns validated assessment data', async () => {
-    const response = GET(new Request('http://localhost/api/assessments', {
+    const response = await GET(new Request('http://localhost/api/assessments', {
       headers: { cookie: 'session=valid' },
     }));
     expect(response.status).toBe(200);

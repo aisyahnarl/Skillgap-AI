@@ -275,6 +275,40 @@ export const assessmentService = {
     }
   },
 
+  /**
+   * Mengambil dan menyinkronkan riwayat asesmen dari database PostgreSQL melalui /api/assessments (Item 6).
+   * Menggantikan ketergantungan eksklusif pada localStorage dan menyediakan data terpusat.
+   */
+  async syncFromApi(): Promise<AssessmentHistoryItem[]> {
+    if (typeof window === 'undefined' || typeof fetch === 'undefined') {
+      return this.getHistory();
+    }
+    try {
+      const res = await fetch('/api/assessments');
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+          const dbItems: AssessmentHistoryItem[] = json.data.map((row: any) => ({
+            id: String(row.id),
+            submittedAt: row.submitted_at || new Date().toISOString(),
+            userName: row.name,
+            target: row.target,
+            matchScore: parseInt(row.match, 10) || 85,
+            skillGap: 100 - (parseInt(row.match, 10) || 85),
+            role: row.category,
+            jenjang: row.category,
+            report: defaultStudentReport,
+          }));
+          localStorage.setItem(HISTORY_KEY, JSON.stringify(dbItems));
+          return dbItems;
+        }
+      }
+    } catch (e) {
+      console.warn('[assessmentService.syncFromApi]:', e);
+    }
+    return this.getHistory();
+  },
+
   addHistory(item: AssessmentHistoryItem): void {
     if (typeof window === 'undefined') return;
     const history = this.getHistory();

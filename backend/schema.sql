@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS assessments (
     skill_levels JSONB, -- Tingkat kemahiran per skill
     questionnaire JSONB, -- Respons kuesioner kesiapan belajar skala Likert 1-5
     full_report JSONB, -- Laporan lengkap hasil pemetaan AI & sertifikasi
+    validation_status VARCHAR(50) DEFAULT 'review', -- 'valid', 'review', 'pending'
     submitted_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 

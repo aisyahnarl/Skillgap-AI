@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
+import bcrypt from 'bcrypt';
 import { getJwtSecret, signJWT, verifyJWT, decodeJWTPayload, type JWTPayload } from '../app/lib/jwt';
 import { middleware } from '../middleware';
 import { NextRequest } from 'next/server';
@@ -11,7 +12,9 @@ import {
   extractSkillsFromText,
 } from '../app/lib/cv-parser';
 import { buildPromptForJenjang, callRealLLM } from '../app/lib/llm-service';
+import * as dbModule from '../app/lib/db';
 import { getDbPool, query, isDbConnected } from '../app/lib/db';
+import { assessmentService } from '../app/services/assessment-service';
 import { GET as getAssessments, POST as postAssessments } from '../app/api/assessments/route';
 import { POST as uploadDocument } from '../app/api/documents/upload/route';
 import { POST as apiLogin } from '../app/api/login/route';
@@ -393,18 +396,37 @@ describe('Item 6: Database Storage & API Endpoints Integration', () => {
 
   it('GET and POST /api/assessments connects to storage with session check', async () => {
     const reqUnauth = new Request('http://localhost:3000/api/assessments');
-    const resUnauth = getAssessments(reqUnauth);
+    const resUnauth = await getAssessments(reqUnauth);
     expect(resUnauth.status).toBe(401);
 
     const token = await signJWT({ email: 'user@skillgap.ai', name: 'User', role: 'Mahasiswa' });
     const reqAuth = new Request('http://localhost:3000/api/assessments', {
       headers: { authorization: `Bearer ${token}` },
     });
-    const resAuth = getAssessments(reqAuth);
+    const resAuth = await getAssessments(reqAuth);
     expect(resAuth.status).toBe(200);
     const data = await resAuth.json();
     expect(data.success).toBe(true);
     expect(Array.isArray(data.data)).toBe(true);
+
+    // Test database branch with mock rows
+    const querySpy = vi.spyOn(dbModule, 'query').mockResolvedValueOnce({
+      rows: [
+        { id: 10, name: 'Sari Indah', category: 'Mahasiswa', target: 'Data Scientist', match: '92%', status: 'valid' }
+      ],
+      rowCount: 1,
+      command: 'SELECT',
+      oid: 0,
+      fields: [],
+    } as any);
+
+    const resFromDb = await getAssessments(reqAuth);
+    expect(resFromDb.status).toBe(200);
+    const dbData = await resFromDb.json();
+    expect(dbData.success).toBe(true);
+    expect(dbData.data[0].name).toBe('Sari Indah');
+
+    querySpy.mockRestore();
 
     const reqPost = new Request('http://localhost:3000/api/assessments', {
       method: 'POST',
@@ -420,6 +442,20 @@ describe('Item 6: Database Storage & API Endpoints Integration', () => {
     });
     const resPost = await postAssessments(reqPost);
     expect(resPost.status).toBe(201);
+
+    // Test assessmentService.syncFromApi
+    const originalFetch = global.fetch;
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        success: true,
+        data: [{ id: '99', name: 'Dewi', category: 'Pelajar', target: 'UI Designer', match: '88%' }]
+      }),
+    } as any);
+
+    const synced = await assessmentService.syncFromApi();
+    expect(Array.isArray(synced)).toBe(true);
+    global.fetch = originalFetch;
   });
 
   it('handles /api/documents/upload with file validation and size check', async () => {
@@ -519,6 +555,67 @@ describe('Item 6: Database Storage & API Endpoints Integration', () => {
     const regJson = await resGoodReg.json();
     expect(regJson.success).toBe(true);
     expect(regJson.token).toBeDefined();
+
+    // Login via DB match
+    const hashedPassword = await bcrypt.hash('secret123', 10);
+    const queryLoginSpy = vi.spyOn(dbModule, 'query').mockResolvedValueOnce({
+      rows: [
+        { id: 1, name: 'DB User', email: 'dbuser@skillgap.ai', password: hashedPassword, role: 'Mahasiswa', jenjang: 'Mahasiswa' }
+      ],
+      rowCount: 1,
+    } as any);
+
+    const reqDbLogin = new Request('http://localhost:3000/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'dbuser@skillgap.ai', password: 'secret123' }),
+    });
+    const resDbLogin = await apiLogin(reqDbLogin);
+    expect(resDbLogin.status).toBe(200);
+    queryLoginSpy.mockRestore();
+
+    // Register duplicate email in DB
+    const queryRegSpy = vi.spyOn(dbModule, 'query').mockResolvedValueOnce({
+      rows: [{ id: 5 }],
+      rowCount: 1,
+    } as any);
+
+    const reqDupReg = new Request('http://localhost:3000/api/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Duplicate',
+        email: 'exist@skillgap.ai',
+        password: 'password123',
+        role: 'Mahasiswa',
+        jenjang: 'Mahasiswa',
+      }),
+    });
+    const resDupReg = await apiRegister(reqDupReg);
+    expect(resDupReg.status).toBe(400);
+    queryRegSpy.mockRestore();
+
+    // CV cache hit branch
+    const queryCvSpy = vi.spyOn(dbModule, 'query').mockResolvedValueOnce({
+      rows: [
+        {
+          file_name: 'cached_cv.pdf',
+          file_url: '/uploads/cv/cached_cv.pdf',
+          file_path: '/tmp/cached_cv.pdf',
+          extracted_text: 'Summary',
+          extracted_skills: JSON.stringify(['React', 'TypeScript']),
+          cosine_similarity: '0.85',
+          match_score: '87',
+          extraction_source: 'llm',
+        }
+      ],
+      rowCount: 1,
+    } as any);
+
+    const cachedRes = await processCvUpload(Buffer.from('Cached CV content'), 'cv.pdf', 100);
+    expect(cachedRes.dbSaved).toBe(true);
+    expect(cachedRes.extractedSkills).toContain('React');
+    queryCvSpy.mockRestore();
   });
 
   it('handles /api/notifications/email with authorization check', async () => {

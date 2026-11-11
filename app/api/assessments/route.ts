@@ -10,11 +10,41 @@ const assessments: AssessmentInput[] = [
 ];
 
 /**
- * GET: Mengambil riwayat asesmen (kompatibel sync untuk Next.js BFF & unit test)
+ * GET: Mengambil riwayat asesmen dari database PostgreSQL (dengan fallback cache/seed memori) (Item 6)
  */
-export function GET(request: Request) {
+export async function GET(request: Request) {
   if (!hasSession(request)) {
     return NextResponse.json({ success: false, message: 'Session required.' }, { status: 401 });
+  }
+
+  try {
+    const res = await query(`
+      SELECT a.id, COALESCE(u.name, 'Pengguna') as name, 
+             COALESCE(u.jenjang, 'Mahasiswa') as category, 
+             a.target_career as target, 
+             CONCAT(a.match_score, '%') as match, 
+             COALESCE(a.validation_status, 'review') as status
+      FROM assessments a
+      LEFT JOIN users u ON a.user_id = u.id
+      ORDER BY a.submitted_at DESC
+      LIMIT 50
+    `);
+    if (res && res.rows.length > 0) {
+      const dbAssessments: AssessmentInput[] = res.rows.map((r: any) => ({
+        id: String(r.id),
+        name: r.name || 'Pengguna',
+        category: r.category || 'Mahasiswa',
+        target: r.target,
+        match: r.match,
+        status: (['valid', 'review', 'pending'].includes(r.status) ? r.status : 'review') as 'valid' | 'review' | 'pending',
+      }));
+      return NextResponse.json({
+        success: true,
+        data: assessmentResponseSchema.parse(dbAssessments),
+      });
+    }
+  } catch (err) {
+    console.warn('[Assessments DB Query Warning]:', err);
   }
 
   return NextResponse.json({
@@ -53,8 +83,15 @@ export async function POST(request: Request) {
         INSERT INTO assessments (user_id, target_career, match_score, skill_gap, validation_status)
         VALUES ($1, $2, $3, $4, $5)
       `, [userId, payload.target, matchNumber, 100 - matchNumber, 'review']);
-    } catch (insertErr) {
-      console.warn('[Assessments DB Insert Warning]:', insertErr);
+    } catch {
+      try {
+        await query(`
+          INSERT INTO assessments (user_id, target_career, match_score, skill_gap)
+          VALUES ($1, $2, $3, $4)
+        `, [userId, payload.target, matchNumber, 100 - matchNumber]);
+      } catch (insertErr) {
+        console.warn('[Assessments DB Insert Warning]:', insertErr);
+      }
     }
 
     return NextResponse.json({ success: true, data: assessment }, { status: 201 });

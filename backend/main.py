@@ -87,6 +87,7 @@ def init_db():
                 report_grades JSONB,
                 primary_skills JSONB,
                 full_report JSONB,
+                validation_status VARCHAR(50) DEFAULT 'review',
                 submitted_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
         """)
