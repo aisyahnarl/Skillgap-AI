@@ -206,12 +206,26 @@ export const authService = {
   },
   async getDashboardStats() {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
-      const res = await fetch(`${apiUrl}/api/dashboard`);
-      if (!res.ok) throw new Error('Gagal mengambil data');
-      return await res.json();
-    } catch (error) {
-      console.error('Error dari backend:', error);
+      // 1. Coba endpoint Next.js Route Handler bawaan (/api/dashboard)
+      const res = await fetch('/api/dashboard');
+      if (res.ok) {
+        return await res.json();
+      }
+
+      // 2. Jika di localhost/pengembangan, coba fallback ke backend FastAPI port 8000
+      if (
+        typeof window !== 'undefined' &&
+        (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+      ) {
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+        const fallbackRes = await fetch(`${apiUrl}/api/dashboard`);
+        if (fallbackRes.ok) {
+          return await fallbackRes.json();
+        }
+      }
+      return null;
+    } catch {
+      // Backend bersifat opsional; dashboard tetap berjalan normal via data lokal
       return null;
     }
   }

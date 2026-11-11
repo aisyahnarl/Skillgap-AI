@@ -23,6 +23,7 @@ import { POST as apiLogin } from '../app/api/login/route';
 import { POST as apiRegister } from '../app/api/register/route';
 import { POST as getRecommendations } from '../app/api/recommendations/route';
 import { POST as apiEmail } from '../app/api/notifications/email/route';
+import { GET as apiDashboard } from '../app/api/dashboard/route';
 
 describe('Item 1: Keamanan JWT & Middleware RBAC', () => {
   it('validates JWT_SECRET in production and development', () => {
@@ -888,5 +889,13 @@ describe('Item 6: Database Storage & API Endpoints Integration', () => {
     expect(json.data.matchScore).toBeGreaterThanOrEqual(50);
     expect(json.data.engine).toBeDefined();
     expect(json.data.roadmap.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('serves dashboard status endpoint for serverless deployment', async () => {
+    const res = await apiDashboard();
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.status).toBe('success');
+    expect(data.stats.total_courses).toBe(5);
   });
 });

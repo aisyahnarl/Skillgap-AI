@@ -75,6 +75,20 @@ describe('Auth Service & Role Management (Bab 11 Security)', () => {
   it('handles getDashboardStats safely when backend is offline or online', async () => {
     const stats = await authService.getDashboardStats();
     expect(stats === null || typeof stats === 'object').toBe(true);
+
+    // Test saat /api/dashboard merespons sukses
+    const originalFetch = globalThis.fetch;
+    try {
+      globalThis.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ status: 'success', stats: { total_courses: 5, completed: 2 } }),
+      } as any);
+      const onlineStats = await authService.getDashboardStats();
+      expect(onlineStats).toBeDefined();
+      expect(onlineStats?.stats.total_courses).toBe(5);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 
   it('creates, updates, and deletes users safely', () => {
