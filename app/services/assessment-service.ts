@@ -281,6 +281,25 @@ export const assessmentService = {
     const updated = [item, ...history];
     localStorage.setItem(HISTORY_KEY, JSON.stringify(updated));
     this.setActiveReport(item.report);
+
+    // Sinkronisasi asinkron ke database PostgreSQL melalui /api/assessments (Item 6)
+    if (
+      typeof window !== 'undefined' &&
+      window.location &&
+      window.location.origin &&
+      window.location.origin.startsWith('http') &&
+      typeof fetch !== 'undefined'
+    ) {
+      fetch(`${window.location.origin}/api/assessments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: item.userName || 'Pengguna',
+          category: item.jenjang || item.role || 'Mahasiswa',
+          target: item.target,
+        }),
+      }).catch((err) => console.warn('[Assessment DB Sync Warning]:', err));
+    }
   },
 
   updateUserProgress(userEmailOrName: string, progressPercentage: number, roadmapStatus?: string): void {

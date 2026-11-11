@@ -1,6 +1,7 @@
 /**
  * SkillGap.AI — LLM Service (Google Gemini / OpenAI Compatible / Grounded RAG)
  * Implementasi Pemanggilan LLM API Sungguhan dengan Template Prompt per Jenjang (FR-08).
+ * Mematuhi prinsip keamanan: API key dikirim via HTTP header 'x-goog-api-key' (bukan query parameter).
  */
 
 export interface LLMRecommendationPrompt {
@@ -35,6 +36,8 @@ export interface LLMRoadmapPhase {
 }
 
 export interface LLMRecommendationOutput {
+  source: 'llm' | 'rule_based_fallback';
+  modelUsed?: string;
   matchScore: number;
   skillGap: number;
   strengths: string[];
@@ -59,9 +62,9 @@ export function buildPromptForJenjang(input: LLMRecommendationPrompt): string {
 
   if (isPelajar) {
     const goal = input.studentProfile?.studentGoal === 'kerja' ? 'Bekerja / Magang Industri (PKL)' : 'Kuliah / Studi Lanjut Vokasi/Akademik';
-    const gradesStr = input.reportGrades
+    const gradesStr = input.reportGrades && Object.keys(input.reportGrades).length > 0
       ? Object.entries(input.reportGrades).map(([k, v]) => `${k}: ${v}`).join(', ')
-      : 'Rata-rata 85';
+      : 'Data nilai rapor belum diinput oleh siswa (evaluasi berbasis keahlian deklaratif)';
 
     return `
 Anda adalah Konselor AI Akademik & Karier Vokasi untuk pelajar SMA/SMK di SkillGap.AI.
@@ -86,11 +89,11 @@ ${input.extractedCvText ? `- Cuplikan Portofolio/CV: ${input.extractedCvText.sli
 
 KEMBALIKAN OUTPUT DALAM FORMAT JSON MURNI TANPA MARKDOWN BACKTICKS:
 {
-  "matchScore": <number 50-95>,
-  "skillGap": <number 5-50>,
-  "strengths": ["<kelebihan 1>", "<kelebihan 2>", "<kelebihan 3>"],
-  "gaps": ["<gap prioritas 1>", "<gap prioritas 2>", "<gap prioritas 3>"],
-  "aiNarrative": "<narasi personal 2-3 paragraf bimbingan pelajar>",
+  "matchScore": <number skala 0-100>,
+  "skillGap": <number skala 0-100>,
+  "strengths": ["<kekuatan 1>", "<kekuatan 2>", "<kekuatan 3>"],
+  "gaps": ["<gap 1>", "<gap 2>", "<gap 3>"],
+  "aiNarrative": "<narasi edukatif motivatif ramah pelajar>",
   "roadmap": [
     {
       "phase": "PHASE 1",
@@ -98,20 +101,43 @@ KEMBALIKAN OUTPUT DALAM FORMAT JSON MURNI TANPA MARKDOWN BACKTICKS:
       "goal": "<tujuan spesifik>",
       "duration": "4 minggu",
       "skills": ["<skill 1>", "<skill 2>"],
-      "resources": ["<sumber belajar>"],
-      "certification": "<nama sertifikasi>",
-      "project": "<proyek latihan>",
-      "status": "Not Started",
-      "tasks": ["<tugas 1>", "<tugas 2>", "<tugas 3>"]
+      "resources": ["<sumber belajar gratis/resmi>"],
+      "certification": "<sertifikasi tingkat pelajar>",
+      "project": "<nama proyek mini>",
+      "status": "In Progress",
+      "tasks": ["<task 1>", "<task 2>", "<task 3>"]
     },
-    ...
+    {
+      "phase": "PHASE 2",
+      "title": "<judul fase>",
+      "goal": "<tujuan spesifik>",
+      "duration": "6 minggu",
+      "skills": ["<skill 1>", "<skill 2>"],
+      "resources": ["<sumber belajar>"],
+      "certification": "<sertifikasi>",
+      "project": "<nama proyek>",
+      "status": "Not Started",
+      "tasks": ["<task 1>", "<task 2>"]
+    },
+    {
+      "phase": "PHASE 3",
+      "title": "<judul fase>",
+      "goal": "<tujuan spesifik>",
+      "duration": "8 minggu",
+      "skills": ["<skill 1>", "<skill 2>"],
+      "resources": ["<sumber belajar>"],
+      "certification": "<sertifikasi>",
+      "project": "<nama proyek>",
+      "status": "Not Started",
+      "tasks": ["<task 1>", "<task 2>"]
+    }
   ],
   "suggestedStudyPaths": [
     {
-      "title": "<nama prodi>",
-      "jenjang": "<D3 / D4 / S1>",
-      "match": <number 75-98>,
-      "description": "<deskripsi>",
+      "title": "<Nama Prodi>",
+      "jenjang": "D4/S1 Vokasi",
+      "match": 90,
+      "description": "<alasan>",
       "careers": ["<karier 1>", "<karier 2>"]
     }
   ]
@@ -121,26 +147,22 @@ KEMBALIKAN OUTPUT DALAM FORMAT JSON MURNI TANPA MARKDOWN BACKTICKS:
 
   if (isMahasiswa) {
     return `
-Anda adalah Lead AI Career Coach & Software Architect untuk mahasiswa perguruan tinggi teknik di SkillGap.AI.
-Tugas Anda: Analisis kesiapan karier profesional mahasiswa terhadap standar industri modern & SKKNI.
-
-[PROFIL MAHASISWA]
-- Target Peran Kerja: ${input.target}
-- Keahlian Dikuasai: ${input.selectedSkills.join(', ')}
-- Tingkat Kemahiran: ${JSON.stringify(input.skillLevels || {})}
-${input.extractedCvText ? `- Ekstraksi CV: ${input.extractedCvText.slice(0, 600)}` : ''}
+Anda adalah AI Career Advisor & Dosen Pembimbing Karier Kampus di SkillGap.AI.
+Tugas Anda: Analisis kesiapan industri mahasiswa untuk target: ${input.target}.
+Profil Keahlian: ${input.selectedSkills.join(', ')}.
+${input.extractedCvText ? `Kutipan Portofolio/CV: ${input.extractedCvText.slice(0, 500)}` : ''}
 
 [INSTRUKSI KHUSUS JENJANG MAHASISWA]
-1. Gunakan bahasa profesional, teknis, dan mengacu pada standar rekayasa perangkat lunak modern (clean code, scalable architecture, RESTful API, database design).
-2. Roadmap 3 Fase harus mencakup:
-   - PHASE 1: Fondasi Arsitektur & Best Practices (Framework inti, Type Safety, Git flow).
-   - PHASE 2: Proyek Portofolio Terapan Dunia Nyata (Full-stack CRUD, testing, integrasi database).
-   - PHASE 3: Validasi Industri, Uji Sertifikasi (Google/AWS/Meta/BNSP), dan Persiapan Rekrutmen.
+1. Pendekatan analitis, profesional, mengacu pada standar kompetensi industri kerja (SKKNI/ACM).
+2. Roadmap 3 Fase berorientasi pada:
+   - PHASE 1: Penguasaan framework industri dan arsitektur kode bersih.
+   - PHASE 2: Proyek kolaboratif atau skripsi/tugas akhir aplikatif berbasis database dan cloud.
+   - PHASE 3: Persiapan magang bersertifikat MSIB Kemendikbudristek dan sertifikasi profesional (e.g. AWS / Google Cloud / Dicoding).
 
 KEMBALIKAN OUTPUT DALAM FORMAT JSON MURNI TANPA MARKDOWN BACKTICKS:
 {
-  "matchScore": <number 55-98>,
-  "skillGap": <number 2-45>,
+  "matchScore": <number skala 0-100>,
+  "skillGap": <number skala 0-100>,
   "strengths": ["<kekuatan 1>", "<kekuatan 2>", "<kekuatan 3>"],
   "gaps": ["<gap 1>", "<gap 2>", "<gap 3>"],
   "aiNarrative": "<narasi mendalam analisis gap dan strategi karier>",
@@ -157,7 +179,30 @@ KEMBALIKAN OUTPUT DALAM FORMAT JSON MURNI TANPA MARKDOWN BACKTICKS:
       "status": "Not Started",
       "tasks": ["<task 1>", "<task 2>", "<task 3>"]
     },
-    ...
+    {
+      "phase": "PHASE 2",
+      "title": "<judul fase>",
+      "goal": "<tujuan spesifik>",
+      "duration": "6 minggu",
+      "skills": ["<skill 1>", "<skill 2>"],
+      "resources": ["<sumber resmi>"],
+      "certification": "<sertifikasi>",
+      "project": "<nama proyek>",
+      "status": "Not Started",
+      "tasks": ["<task 1>", "<task 2>"]
+    },
+    {
+      "phase": "PHASE 3",
+      "title": "<judul fase>",
+      "goal": "<tujuan spesifik>",
+      "duration": "8 minggu",
+      "skills": ["<skill 1>", "<skill 2>"],
+      "resources": ["<sumber resmi>"],
+      "certification": "<sertifikasi>",
+      "project": "<nama proyek>",
+      "status": "Not Started",
+      "tasks": ["<task 1>", "<task 2>"]
+    }
   ]
 }
 `;
@@ -171,20 +216,34 @@ Keahlian pengguna: ${input.selectedSkills.join(', ')}.
 ${input.extractedCvText ? `Ekstraksi Portofolio: ${input.extractedCvText.slice(0, 500)}` : ''}
 
 Fokuskan pada portofolio industri siap rilis, eliminasi gap teknis, dan sertifikasi bernilai tinggi.
-KEMBALIKAN OUTPUT DALAM FORMAT JSON MURNI:
+KEMBALIKAN OUTPUT DALAM FORMAT JSON MURNI TANPA MARKDOWN BACKTICKS:
 {
-  "matchScore": <number>,
-  "skillGap": <number>,
-  "strengths": [...],
-  "gaps": [...],
-  "aiNarrative": "...",
-  "roadmap": [...]
+  "matchScore": <number skala 0-100>,
+  "skillGap": <number skala 0-100>,
+  "strengths": ["<kekuatan 1>", "<kekuatan 2>"],
+  "gaps": ["<gap 1>", "<gap 2>"],
+  "aiNarrative": "<narasi analisis gap percepatan karier>",
+  "roadmap": [
+    {
+      "phase": "PHASE 1",
+      "title": "<judul fase>",
+      "goal": "<tujuan spesifik>",
+      "duration": "4 minggu",
+      "skills": ["<skill 1>", "<skill 2>"],
+      "resources": ["<sumber resmi>"],
+      "certification": "<sertifikasi>",
+      "project": "<nama proyek>",
+      "status": "Not Started",
+      "tasks": ["<task 1>", "<task 2>"]
+    }
+  ]
 }
 `;
 }
 
 /**
- * Panggil LLM API sungguhan (Google Gemini API / OpenAI API) dengan fallback teruji
+ * Panggil LLM API sungguhan (Google Gemini API / OpenAI API) dengan fallback teruji.
+ * Kunci API dikirim melalui header (x-goog-api-key) untuk mencegah eksposur di URL / log jaringan.
  */
 export async function callRealLLM(input: LLMRecommendationPrompt): Promise<LLMRecommendationOutput | null> {
   const prompt = buildPromptForJenjang(input);
@@ -193,10 +252,15 @@ export async function callRealLLM(input: LLMRecommendationPrompt): Promise<LLMRe
   const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
   if (geminiApiKey) {
     try {
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`;
+      const modelName = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+      // Keamanan: Pindahkan API key ke header 'x-goog-api-key', jangan di query param URL
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelName)}:generateContent`;
       const res = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': geminiApiKey,
+        },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: {
@@ -210,12 +274,17 @@ export async function callRealLLM(input: LLMRecommendationPrompt): Promise<LLMRe
         const data = await res.json();
         const textContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
         if (textContent) {
-          const parsed = JSON.parse(textContent.trim().replace(/^```json/, '').replace(/```$/, ''));
-          return parsed as LLMRecommendationOutput;
+          const cleanedText = textContent.trim().replace(/^```json/, '').replace(/```$/, '').trim();
+          const parsed = JSON.parse(cleanedText) as LLMRecommendationOutput;
+          parsed.source = 'llm';
+          parsed.modelUsed = modelName;
+          return parsed;
         }
+      } else {
+        console.warn(`[Gemini LLM Call Warning] HTTP ${res.status}: ${res.statusText}`);
       }
     } catch (err) {
-      console.warn('[Gemini LLM Call Warning]:', err);
+      console.warn('[Gemini LLM Call Exception]:', err);
     }
   }
 
@@ -224,6 +293,7 @@ export async function callRealLLM(input: LLMRecommendationPrompt): Promise<LLMRe
   if (openAiApiKey) {
     try {
       const baseUrl = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
+      const modelName = process.env.OPENAI_MODEL || 'gpt-4o-mini';
       const res = await fetch(`${baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
@@ -231,7 +301,7 @@ export async function callRealLLM(input: LLMRecommendationPrompt): Promise<LLMRe
           'Authorization': `Bearer ${openAiApiKey}`,
         },
         body: JSON.stringify({
-          model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+          model: modelName,
           messages: [
             { role: 'system', content: 'Anda adalah mesin AI pembuat kurikulum dan roadmap karier terstruktur.' },
             { role: 'user', content: prompt },
@@ -245,12 +315,16 @@ export async function callRealLLM(input: LLMRecommendationPrompt): Promise<LLMRe
         const data = await res.json();
         const textContent = data.choices?.[0]?.message?.content;
         if (textContent) {
-          const parsed = JSON.parse(textContent);
-          return parsed as LLMRecommendationOutput;
+          const parsed = JSON.parse(textContent) as LLMRecommendationOutput;
+          parsed.source = 'llm';
+          parsed.modelUsed = modelName;
+          return parsed;
         }
+      } else {
+        console.warn(`[OpenAI LLM Call Warning] HTTP ${res.status}: ${res.statusText}`);
       }
     } catch (err) {
-      console.warn('[OpenAI LLM Call Warning]:', err);
+      console.warn('[OpenAI LLM Call Exception]:', err);
     }
   }
 

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { verifyJWT, decodeJWTPayload, type JWTPayload } from './app/lib/jwt';
+import { verifyJWT, type JWTPayload } from './app/lib/jwt';
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -29,35 +29,21 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Verifikasi tanda tangan JWT kriptografis (HMAC-SHA256)
-  let userPayload: JWTPayload | null = null;
+  // Verifikasi tanda tangan kriptografis JWT (HMAC-SHA256)
+  // Tidak menerima token mentah/cookie tidak bertanda tangan (FR-01, NFR-01)
+  const userPayload: JWTPayload | null = await verifyJWT(token);
 
-  if (token.split('.').length === 3) {
-    userPayload = await verifyJWT(token);
-    if (!userPayload) {
-      // Signature salah atau token expired
-      const loginUrl = new URL('/login', request.url);
-      loginUrl.searchParams.set('error', 'session_expired');
-      const response = NextResponse.redirect(loginUrl);
-      response.cookies.delete('session');
-      response.cookies.delete('session-role');
-      return response;
-    }
-  } else if (token === 'valid') {
-    // Mode transisi demo
-    const roleCookie = request.cookies.get('session-role')?.value;
-    const role = (roleCookie ? decodeURIComponent(roleCookie) : 'Mahasiswa') as JWTPayload['role'];
-    userPayload = {
-      email: 'demo@skillgap.ai',
-      name: 'Demo User',
-      role,
-    };
-  } else {
-    // Token tidak dikenal
+  if (!userPayload) {
     const loginUrl = new URL('/login', request.url);
-    return NextResponse.redirect(loginUrl);
+    loginUrl.searchParams.set('error', 'session_expired');
+    loginUrl.searchParams.set('redirect', pathname);
+    const response = NextResponse.redirect(loginUrl);
+    response.cookies.delete('session');
+    response.cookies.delete('session-role');
+    return response;
   }
 
+  // Peran diambil HANYA dari payload JWT yang telah terverifikasi secara kriptografis
   const role = userPayload.role;
 
   // RBAC Server-Side Enforcement (FR-01, NFR-01)

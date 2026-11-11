@@ -25,8 +25,9 @@ export function getDbPool(): Pool | null {
         console.warn('[PostgreSQL Pool Error]:', err.message);
         isConnected = false;
       });
-    } catch (err: any) {
-      console.warn('[PostgreSQL Init Warning]:', err.message);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn('[PostgreSQL Init Warning]:', msg);
       return null;
     }
   }
@@ -45,8 +46,9 @@ export async function query<T extends QueryResultRow = any>(
     const res = await dbPool.query<T>(text, params);
     isConnected = true;
     return res;
-  } catch (err: any) {
-    console.warn('[PostgreSQL Query Fallback]:', err.message);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn('[PostgreSQL Query Fallback]:', msg);
     isConnected = false;
     return null;
   }

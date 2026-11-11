@@ -115,8 +115,9 @@ export async function POST(request: Request) {
     });
 
     return response;
-  } catch (error: any) {
-    console.error('[API Register Error]:', error);
+  } catch (error: unknown) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error('[API Register Error]:', errorMsg);
     return NextResponse.json(
       { success: false, message: 'Terjadi kesalahan server saat mendaftarkan akun.' },
       { status: 500 }

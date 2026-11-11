@@ -96,8 +96,9 @@ export async function POST(request: Request) {
     });
 
     return response;
-  } catch (err: any) {
-    console.error('[API Login Error]:', err);
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    console.error('[API Login Error]:', errorMsg);
     return NextResponse.json(
       { success: false, message: 'Terjadi kesalahan internal server saat login.' },
       { status: 500 }

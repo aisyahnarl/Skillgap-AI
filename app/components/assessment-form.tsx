@@ -247,7 +247,7 @@ export default function AssessmentForm() {
   // ── State baru: tujuan pelajar SMA/SMK ──────────────────────────────────
   const [studentGoal, setStudentGoal] = useState<'kuliah' | 'kerja' | ''>('');
   const [itJobInterest, setItJobInterest] = useState(''); // bidang IT yang diminati (untuk jalur kerja)
-  const [uploadedCvType, setUploadedCvType] = useState<'pdf' | 'doc' | 'ppt' | 'video' | 'image' | ''>(''); // tipe file yang diunggah
+  const [uploadedCvType, setUploadedCvType] = useState<'pdf' | 'doc' | 'ppt' | 'image' | ''>(''); // tipe file yang diunggah
 
   useEffect(() => {
     // Muat data pengguna yang sedang login
@@ -307,25 +307,23 @@ export default function AssessmentForm() {
       return;
     }
 
-    // Tipe file yang diizinkan (diperluas sesuai saran: PDF, PPT, video, dll)
-    const docExtensions = ['pdf', 'docx', 'doc'];
+    // Tipe file yang diizinkan: Dokumen teks/CV (PDF, DOCX, TXT), PPT, dan gambar portofolio
+    const docExtensions = ['pdf', 'docx', 'doc', 'txt'];
     const pptExtensions = ['ppt', 'pptx'];
-    const videoExtensions = ['mp4', 'mov', 'avi', 'mkv', 'webm'];
-    const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+    const imageExtensions = ['jpg', 'jpeg', 'png', 'webp'];
 
-    const allAllowed = [...docExtensions, ...pptExtensions, ...videoExtensions, ...imageExtensions];
+    const allAllowed = [...docExtensions, ...pptExtensions, ...imageExtensions];
 
     if (!allAllowed.includes(extension)) {
-      setError(`Format .${extension} tidak didukung. Format yang diterima: PDF, DOCX, PPT, PPTX, MP4, MOV, JPG, PNG.`);
+      setError(`Format .${extension} tidak didukung. Format yang diterima: PDF, DOCX, TXT, PPT, PPTX, JPG, PNG.`);
       event.target.value = '';
       return;
     }
 
-    // Batas ukuran file
-    const isVideo = videoExtensions.includes(extension);
-    const maxSize = isVideo ? 50 * 1024 * 1024 : 20 * 1024 * 1024; // 50MB untuk video, 20MB untuk lainnya
+    // Batas ukuran file (20 MB untuk dokumen)
+    const maxSize = 20 * 1024 * 1024;
     if (file.size > maxSize) {
-      setError(`Ukuran file melebihi batas maksimal (${isVideo ? '50 MB untuk video' : '20 MB untuk dokumen/gambar'}).`);
+      setError('Ukuran file melebihi batas maksimal 20 MB.');
       event.target.value = '';
       return;
     }
@@ -334,7 +332,6 @@ export default function AssessmentForm() {
     let fileType: typeof uploadedCvType = '';
     if (docExtensions.includes(extension)) fileType = extension === 'pdf' ? 'pdf' : 'doc';
     else if (pptExtensions.includes(extension)) fileType = 'ppt';
-    else if (videoExtensions.includes(extension)) fileType = 'video';
     else if (imageExtensions.includes(extension)) fileType = 'image';
 
     const fileName = file.name;
@@ -543,7 +540,7 @@ export default function AssessmentForm() {
               <div>
                 <p className="text-sm font-bold uppercase tracking-[0.2em] text-indigo-600">Unggah CV / Portofolio</p>
                 <p className="mt-2 text-sm text-slate-600">
-                  Upload CV, portofolio, presentasi, atau video profil. Format yang diterima: PDF, DOCX, PPT, PPTX, MP4, MOV, JPG, PNG (maks. 50 MB untuk video, 20 MB untuk dokumen).
+                  Upload CV, portofolio, atau presentasi. Format yang diterima: PDF, DOCX, TXT, PPT, PPTX, JPG, PNG (maks. 20 MB).
                 </p>
               </div>
             </div>
@@ -551,20 +548,20 @@ export default function AssessmentForm() {
             <label className="mt-4 flex cursor-pointer items-center justify-center rounded-2xl border border-dashed border-indigo-300 bg-white px-4 py-6 text-sm font-semibold text-indigo-700 transition hover:border-indigo-400 hover:bg-indigo-50">
               <input
                 type="file"
-                accept=".pdf,.doc,.docx,.ppt,.pptx,.mp4,.mov,.avi,.mkv,.webm,.jpg,.jpeg,.png,.gif,.webp"
+                accept=".pdf,.doc,.docx,.txt,.ppt,.pptx,.jpg,.jpeg,.png,.webp"
                 className="hidden"
                 onChange={handleCvUpload}
               />
               <span className="inline-flex items-center gap-2">
                 <span className="text-lg">
-                  {uploadedCvType === 'video' ? '🎥' : uploadedCvType === 'ppt' ? '📊' : uploadedCvType === 'image' ? '🖼️' : '📄'}
+                  {uploadedCvType === 'ppt' ? '📊' : uploadedCvType === 'image' ? '🖼️' : '📄'}
                 </span>
                 {uploadedCv ? 'Ganti file CV / portofolio' : 'Pilih file CV / portofolio'}
               </span>
             </label>
 
             <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
-              {[{label:'📄 PDF', ext:'pdf'},{label:'📝 DOCX',ext:'docx'},{label:'📊 PPT/PPTX',ext:'ppt'},{label:'🎥 Video MP4/MOV',ext:'video'},{label:'🖼️ JPG/PNG',ext:'image'}].map(t => (
+              {[{label:'📄 PDF', ext:'pdf'},{label:'📝 DOCX',ext:'docx'},{label:'📊 PPT/PPTX',ext:'ppt'},{label:'🖼️ JPG/PNG',ext:'image'}].map(t => (
                 <span key={t.ext} className="rounded-md bg-slate-100 px-2 py-1 font-semibold text-slate-600">{t.label}</span>
               ))}
             </div>
@@ -666,36 +663,35 @@ export default function AssessmentForm() {
           {isPelajar && studentGoal === 'kerja' && <div hidden={currentStep !== 3} className="rounded-[24px] border border-emerald-200 bg-gradient-to-r from-emerald-50 via-white to-sky-50 p-5">
             <p className="text-sm font-bold uppercase tracking-[0.2em] text-emerald-600">Upload CV / Portofolio</p>
             <p className="mt-2 text-sm text-slate-600">
-              Upload dokumen CV, portofolio desain, video perkenalan diri, atau presentasi PPT yang dimiliki.
-              Format yang diterima: PDF, DOCX, PPT, PPTX, MP4, MOV, JPG, PNG.
+              Upload dokumen CV, portofolio desain, atau presentasi PPT yang dimiliki.
+              Format yang diterima: PDF, DOCX, TXT, PPT, PPTX, JPG, PNG.
             </p>
 
             <label className="mt-4 flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-emerald-300 bg-white px-4 py-8 text-sm font-semibold text-emerald-700 transition hover:border-emerald-400 hover:bg-emerald-50">
               <input
                 type="file"
-                accept=".pdf,.doc,.docx,.ppt,.pptx,.mp4,.mov,.avi,.mkv,.webm,.jpg,.jpeg,.png,.gif,.webp"
+                accept=".pdf,.doc,.docx,.txt,.ppt,.pptx,.jpg,.jpeg,.png,.webp"
                 className="hidden"
                 onChange={handleCvUpload}
               />
               <span className="text-4xl">
-                {uploadedCvType === 'video' ? '🎥' : uploadedCvType === 'ppt' ? '📊' : uploadedCvType === 'image' ? '🖼️' : '📤'}
+                {uploadedCvType === 'ppt' ? '📊' : uploadedCvType === 'image' ? '🖼️' : '📤'}
               </span>
               <span>{uploadedCv ? 'Ganti file yang diunggah' : 'Klik atau seret file ke sini'}</span>
               <span className="text-xs font-normal text-slate-500">
-                PDF, DOCX, PPT, PPTX, MP4, MOV, JPG, PNG • Maks 50 MB untuk video, 20 MB lainnya
+                PDF, DOCX, TXT, PPT, PPTX, JPG, PNG • Maks. 20 MB
               </span>
             </label>
 
             {uploadedCv && (
               <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
                 <p className="text-sm font-bold text-emerald-800">
-                  {uploadedCvType === 'video' ? '🎥' : uploadedCvType === 'ppt' ? '📊' : uploadedCvType === 'image' ? '🖼️' : '📄'}{' '}
+                  {uploadedCvType === 'ppt' ? '📊' : uploadedCvType === 'image' ? '🖼️' : '📄'}{' '}
                   {uploadedCv}
                 </p>
                 <p className="mt-1 text-xs text-emerald-600">
                   {(uploadedCvSize / (1024 * 1024)).toFixed(1)} MB •{' '}
-                  {uploadedCvType === 'video' ? 'Video profil/portofolio'
-                    : uploadedCvType === 'ppt' ? 'Presentasi/slide portofolio'
+                  {uploadedCvType === 'ppt' ? 'Presentasi/slide portofolio'
                     : uploadedCvType === 'image' ? 'Gambar portofolio'
                     : 'Dokumen CV/portofolio'} berhasil diunggah
                 </p>

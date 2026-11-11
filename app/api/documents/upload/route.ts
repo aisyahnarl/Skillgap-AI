@@ -45,10 +45,11 @@ export async function POST(request: Request) {
       message: 'CV berhasil diproses dan diekstraksi menggunakan AI.',
       data: result,
     });
-  } catch (error: any) {
-    console.error('[Document Upload API Error]:', error);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Gagal memproses unggahan CV.';
+    console.error('[Document Upload API Error]:', message);
     return NextResponse.json(
-      { success: false, message: error.message || 'Gagal memproses unggahan CV.' },
+      { success: false, message },
       { status: 500 }
     );
   }

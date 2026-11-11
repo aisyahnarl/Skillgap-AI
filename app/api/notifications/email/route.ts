@@ -55,7 +55,8 @@ export async function POST(request: Request) {
       message: `Notifikasi email kategori '${input.category}' berhasil diproses.`,
       delivered: sent,
     });
-  } catch (err: any) {
-    return NextResponse.json({ success: false, message: err.message || 'Payload tidak valid.' }, { status: 400 });
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : 'Payload tidak valid.';
+    return NextResponse.json({ success: false, message: errorMsg }, { status: 400 });
   }
 }

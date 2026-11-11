@@ -1,6 +1,6 @@
-import { verifyJWT, signJWT, decodeJWTPayload, type JWTPayload } from './jwt';
+import { verifyJWT, signJWT, decodeJWTPayload, getJwtSecret, type JWTPayload } from './jwt';
 
-export { verifyJWT, signJWT, decodeJWTPayload };
+export { verifyJWT, signJWT, decodeJWTPayload, getJwtSecret };
 export type { JWTPayload };
 
 /**
@@ -35,8 +35,8 @@ export async function getVerifiedUser(request: Request): Promise<JWTPayload | nu
   const verified = await verifyJWT(token);
   if (verified) return verified;
 
-  // Fallback transisi backward compatibility untuk sesi lama 'session=valid' jika masih ada
-  if (token === 'valid') {
+  // Dukungan sesi transisi testing/dev
+  if (token === 'valid' && process.env.NODE_ENV !== 'production') {
     const cookieHeader = request.headers.get('cookie') ?? '';
     const roleMatch = cookieHeader.match(/(?:^|;\s*)session-role=([^;]+)/);
     const role = (roleMatch && roleMatch[1] ? decodeURIComponent(roleMatch[1]) : 'Mahasiswa') as JWTPayload['role'];
@@ -52,12 +52,16 @@ export async function getVerifiedUser(request: Request): Promise<JWTPayload | nu
 }
 
 /**
- * Memeriksa apakah request memiliki sesi yang valid (bisa JWT atau fallback valid).
+ * Memeriksa apakah request memiliki sesi yang valid (JWT bertanda tangan atau token testing).
  */
 export function hasSession(request: Request): boolean {
   const token = extractTokenFromRequest(request);
   if (!token) return false;
-  if (token === 'valid') return true;
+
+  // Sesi testing development
+  if (token === 'valid' && process.env.NODE_ENV !== 'production') {
+    return true;
+  }
 
   // Cek struktur JWT 3 segmen
   const parts = token.split('.');
@@ -71,17 +75,19 @@ export function hasSession(request: Request): boolean {
 }
 
 /**
- * Memeriksa apakah request memiliki otorisasi Admin di server.
+ * Memeriksa apakah request memiliki otorisasi Admin di server berdasarkan token JWT atau sesi testing.
  */
 export function hasAdminSession(request: Request): boolean {
   const token = extractTokenFromRequest(request);
   if (!token) return false;
 
-  if (token === 'valid') {
+  if (token === 'valid' && process.env.NODE_ENV !== 'production') {
     const cookieHeader = request.headers.get('cookie') ?? '';
     return decodeURIComponent(cookieHeader).includes('session-role=Admin');
   }
 
   const payload = decodeJWTPayload(token);
-  return payload?.role === 'Admin';
+  if (!payload) return false;
+  if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) return false;
+  return payload.role === 'Admin';
 }

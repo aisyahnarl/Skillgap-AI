@@ -64,13 +64,16 @@ CREATE TABLE IF NOT EXISTS uploaded_documents (
     id SERIAL PRIMARY KEY,
     user_id INT REFERENCES users(id) ON DELETE CASCADE,
     file_name VARCHAR(255) NOT NULL,
-    file_path TEXT NOT NULL, -- Lokasi file fisik di storage server / public/uploads/cv/
+    file_hash VARCHAR(64), -- SHA-256 hash untuk deteksi berkas dan caching per-hash
+    file_path TEXT NOT NULL, -- Lokasi file fisik di storage server / blob / public/uploads/cv/
     file_url TEXT NOT NULL, -- URL akses dokumen
     file_type VARCHAR(50) NOT NULL, -- 'pdf', 'docx', 'doc', 'txt'
     file_size INT DEFAULT 0, -- Ukuran berkas dalam byte
-    extracted_text TEXT, -- Teks hasil ekstraksi parser PDF/DOCX
-    extracted_skills JSONB, -- Daftar skill yang diidentifikasi oleh NLP engine
+    extracted_text TEXT, -- Teks/ringkasan hasil ekstraksi LLM / parser
+    extracted_skills JSONB, -- Daftar skill yang diidentifikasi oleh LLM / NLP engine
     cosine_similarity NUMERIC(6, 4), -- Skor kemiripan vektor terhadap target career
+    match_score INT DEFAULT 0, -- Skor kesesuaian terkalibrasi 0-100
+    extraction_source VARCHAR(50) DEFAULT 'llm', -- 'llm' atau 'rule_based_fallback'
     uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -133,6 +136,7 @@ CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
 CREATE INDEX IF NOT EXISTS idx_assessments_user_id ON assessments(user_id);
 CREATE INDEX IF NOT EXISTS idx_assessments_submitted_at ON assessments(submitted_at DESC);
 CREATE INDEX IF NOT EXISTS idx_documents_user_id ON uploaded_documents(user_id);
+CREATE INDEX IF NOT EXISTS idx_documents_file_hash ON uploaded_documents(file_hash);
 CREATE INDEX IF NOT EXISTS idx_roadmaps_user_id ON user_roadmaps(user_id);
 CREATE INDEX IF NOT EXISTS idx_validations_assessment_id ON counselor_validations(assessment_id);
 CREATE INDEX IF NOT EXISTS idx_sus_user_id ON sus_evaluations(user_id);

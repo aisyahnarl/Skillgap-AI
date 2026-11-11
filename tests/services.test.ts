@@ -999,7 +999,7 @@ describe('Service localStorage integration (Browser environment)', () => {
         questionnaire: { q1: 5, q2: 4 },
       });
 
-      expect(prompt).toContain('Software Architect');
+      expect(prompt).toContain('AI Career Advisor');
       expect(prompt).toContain('Fullstack Engineer');
       expect(prompt).toContain('Next.js');
     });

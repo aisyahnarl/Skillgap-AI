@@ -15,8 +15,25 @@ export interface JWTPayload {
   [key: string]: unknown;
 }
 
-const DEFAULT_JWT_SECRET = process.env.JWT_SECRET || 'skillgap-jwt-hmac-sha256-production-secret-key-2026';
 const DEFAULT_EXPIRATION = 7 * 24 * 60 * 60; // 7 hari dalam detik
+
+/**
+ * Mendapatkan secret key JWT dari environment variable.
+ * Wajib diset di production; akan melempar error bila tidak ada di production.
+ */
+export function getJwtSecret(customSecret?: string): string {
+  if (customSecret && customSecret.trim().length > 0) {
+    return customSecret;
+  }
+  const secret = process.env.JWT_SECRET;
+  if (!secret || secret.trim().length === 0) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('FATAL: JWT_SECRET environment variable is required in production.');
+    }
+    return 'skillgap-dev-fallback-secret-minimum-32-chars-long';
+  }
+  return secret;
+}
 
 function base64UrlEncode(str: string): string {
   const bytes = new TextEncoder().encode(str);
@@ -74,9 +91,10 @@ async function getCryptoKey(secret: string, usage: 'sign' | 'verify'): Promise<C
  */
 export async function signJWT(
   payload: JWTPayload,
-  secret: string = DEFAULT_JWT_SECRET,
+  secret?: string,
   expiresInSeconds: number = DEFAULT_EXPIRATION
 ): Promise<string> {
+  const effectiveSecret = getJwtSecret(secret);
   const header = {
     alg: 'HS256',
     typ: 'JWT',
@@ -93,7 +111,7 @@ export async function signJWT(
   const encodedPayload = base64UrlEncode(JSON.stringify(fullPayload));
   const dataToSign = `${encodedHeader}.${encodedPayload}`;
 
-  const key = await getCryptoKey(secret, 'sign');
+  const key = await getCryptoKey(effectiveSecret, 'sign');
   const signatureBytes = await crypto.subtle.sign(
     'HMAC',
     key,
@@ -109,7 +127,7 @@ export async function signJWT(
  */
 export async function verifyJWT(
   token: string,
-  secret: string = DEFAULT_JWT_SECRET
+  secret?: string
 ): Promise<JWTPayload | null> {
   if (!token || typeof token !== 'string') return null;
 
@@ -120,7 +138,8 @@ export async function verifyJWT(
   if (!headerB64 || !payloadB64 || !signatureB64) return null;
 
   try {
-    const key = await getCryptoKey(secret, 'verify');
+    const effectiveSecret = getJwtSecret(secret);
+    const key = await getCryptoKey(effectiveSecret, 'verify');
     const dataToVerify = `${headerB64}.${payloadB64}`;
     const signatureBytes = base64UrlToBytes(signatureB64);
 

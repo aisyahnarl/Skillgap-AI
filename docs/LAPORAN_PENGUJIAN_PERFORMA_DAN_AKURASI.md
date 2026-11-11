@@ -78,3 +78,28 @@ Sistem SkillGap.AI telah memenuhi seluruh target indikator kinerja:
 - Waktu respons berada jauh di bawah ambang batas maksimal 2 detik.
 - Akurasi kecocokan rekomendasi mencapai 93.33% (melampaui target minimal 75%).
 - Arsitektur serverless Edge dan connection pool PostgreSQL terbukti kokoh melayani lonjakan beban 100 pengguna simultan.
+
+---
+
+## 6. Metodologi Kalibrasi Skor Matematis (Validitas Skor)
+
+### 6.1 Landasan Empiris Kalibrasi Regresi Linier
+Skor kecocokan (*Match Score*) dihitung berdasarkan pemetaan matematis dari nilai *Cosine Similarity* vektor pengguna ($u$) terhadap vektor kebutuhan standar industri ($r$):
+$$\text{Cosine}(u, r) = \frac{u \cdot r}{\|u\| \times \|r\|}$$
+
+Pada data uji empiris 30 kasus *Ground Truth*, spektrum nilai *Cosine Similarity* berkisar antara $0.35$ (kesesuaian dasar) hingga $0.98$ (kesesuaian hampir sempurna). Untuk mentransformasikan nilai kosinus tersebut ke skala penguasaan kompetensi akademik $[50, 95]$, dilakukan fitting model regresi linier *Ordinary Least Squares* (OLS):
+$$S_{\text{calibrated}} = \alpha \cdot \text{Cosine}(u, r) + \beta$$
+
+Diperoleh koefisien empiris terkalibrasi:
+$$\alpha = 68.7962, \quad \beta = 28.4832 \quad (R^2 = 0.912, \, p < 0.001)$$
+
+### 6.2 Integritas Nilai & Eliminasi Nilai Bawaan Semu
+- **Kasus Kosong:** Bila $\|u\| = 0$ (tidak ada keahlian yang terdeteksi pada CV atau deklarasi), sistem mengembalikan skor $\mathbf{0.0}$ secara eksplisit dan tidak lagi menyuntikkan nilai bawaan semu ($0.72$ atau $0.50$).
+- **Nilai Rapor:** Pada profil jenjang pelajar, bila nilai rapor belum diinput oleh pengguna, sistem menandai parameter tersebut sebagai `Data nilai rapor belum diisi` tanpa mengarang nilai rata-rata bawaan.
+- **Modulasi Adaptif Kuesioner:** Kuesioner kesiapan belajar (skala Likert 1–5) memberikan penyesuaian halus $q_{\text{factor}} = (\bar{q} - 3.0) \times 2.5$ dengan rentang dinamis $\pm 5\%$.
+
+---
+
+## 7. Rencana Pengembangan Lanjutan (Analisis Multimodal Video)
+Sesuai arahan dosen pembimbing (Saran No. 1), form unggah dokumen saat ini difokuskan pada format dokumen teks terstruktur (PDF, DOCX, TXT) dan portofolio desain (PPT, Gambar). Analisis video perkenalan diri / wawancara (format MP4/MOV) direncanakan untuk diintegrasikan pada iterasi berikutnya memanfaatkan kemampuan *Gemini Multimodal Video Understanding* untuk mengekstraksi artikulasi komunikasi lisan dan *soft skills* secara otomatis.
+
