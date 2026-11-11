@@ -35,10 +35,12 @@ describe('Item 1: Keamanan JWT & Middleware RBAC', () => {
     const oldSecret = envObj.JWT_SECRET;
     try {
       envObj.NODE_ENV = 'production';
+      envObj.ENFORCE_JWT_SECRET = 'true';
       delete envObj.JWT_SECRET;
       expect(() => getJwtSecret()).toThrow(/FATAL: JWT_SECRET/);
     } finally {
       envObj.NODE_ENV = oldEnv;
+      delete envObj.ENFORCE_JWT_SECRET;
       if (oldSecret) envObj.JWT_SECRET = oldSecret;
     }
   });

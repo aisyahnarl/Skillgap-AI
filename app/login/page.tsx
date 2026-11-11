@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { authService } from '../services/auth-service';
+import { signJWT } from '../lib/jwt';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -17,6 +18,8 @@ export default function LoginPage() {
     authService.ensureSeedUsers();
     if (searchParams.get('registered') === '1') {
       setMessage('Akun berhasil dibuat. Silakan login terlebih dahulu.');
+    } else if (searchParams.get('error') === 'session_expired') {
+      setError('Sesi Anda telah kedaluwarsa atau belum terverifikasi. Silakan login kembali.');
     }
   }, [searchParams]);
 
@@ -57,7 +60,13 @@ export default function LoginPage() {
         const localUser = authService.login(form.email, form.password);
         if (localUser) {
           const role = localUser.role || 'Mahasiswa';
-          authService.setSession(localUser);
+          const clientToken = await signJWT({
+            name: localUser.name,
+            email: localUser.email,
+            role: localUser.role,
+            jenjang: localUser.jenjang,
+          });
+          authService.setSession(localUser, clientToken);
           setMessage(`Login berhasil sebagai ${role}. Mengarahkan ke workspace...`);
           setTimeout(() => {
             if (role === 'Admin') router.push('/admin');
@@ -96,6 +105,17 @@ export default function LoginPage() {
       const localUser = authService.login(form.email, form.password);
       if (localUser) {
         const role = localUser.role || 'Mahasiswa';
+        try {
+          const clientToken = await signJWT({
+            name: localUser.name,
+            email: localUser.email,
+            role: localUser.role,
+            jenjang: localUser.jenjang,
+          });
+          authService.setSession(localUser, clientToken);
+        } catch {
+          authService.setSession(localUser);
+        }
         setMessage(`Login berhasil sebagai ${role}. Mengarahkan ke workspace...`);
         setTimeout(() => {
           if (role === 'Admin') router.push('/admin');

@@ -47,6 +47,14 @@ export const seedUsers: UserProfile[] = [
     createdAt: '2026-08-20T10:15:00.000Z',
   },
   {
+    name: 'Irfan Hakim',
+    email: 'irfan@pelajar.com',
+    role: 'Pelajar',
+    jenjang: 'Pelajar SMA-SMK Sederajat',
+    password: getDefaultPassword('Pelajar'),
+    createdAt: '2026-08-22T10:15:00.000Z',
+  },
+  {
     name: 'Dr. Hendra Wijaya, M.Kom',
     email: 'hendra@univ.ac.id',
     role: 'Dosen',
