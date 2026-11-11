@@ -1,45 +1,92 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { verifyJWT, decodeJWTPayload, type JWTPayload } from './app/lib/jwt';
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const isDashboardRoute = pathname.startsWith('/dashboard');
-  const isProtectedRoute = pathname.startsWith('/dashboard') || pathname.startsWith('/assessment') || pathname.startsWith('/list');
+  const isProtectedRoute =
+    pathname.startsWith('/dashboard') ||
+    pathname.startsWith('/assessment') ||
+    pathname.startsWith('/list');
   const isAdminRoute = pathname.startsWith('/admin');
   const isLecturerRoute = pathname.startsWith('/lecturer');
   const isCounselorRoute = pathname.startsWith('/counselor');
 
+  // Hanya periksa rute terproteksi
+  if (!isProtectedRoute && !isAdminRoute && !isLecturerRoute && !isCounselorRoute) {
+    return NextResponse.next();
+  }
+
   const sessionCookie = request.cookies.get('session')?.value;
-  const roleCookie = request.cookies.get('session-role')?.value;
+  const authHeader = request.headers.get('authorization');
+  const token = (authHeader && authHeader.toLowerCase().startsWith('bearer '))
+    ? authHeader.slice(7).trim()
+    : sessionCookie;
 
-  if ((isProtectedRoute || isAdminRoute || isLecturerRoute || isCounselorRoute) && sessionCookie !== 'valid') {
+  if (!token) {
+    const loginUrl = new URL('/login', request.url);
+    loginUrl.searchParams.set('redirect', pathname);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  // Verifikasi tanda tangan JWT kriptografis (HMAC-SHA256)
+  let userPayload: JWTPayload | null = null;
+
+  if (token.split('.').length === 3) {
+    userPayload = await verifyJWT(token);
+    if (!userPayload) {
+      // Signature salah atau token expired
+      const loginUrl = new URL('/login', request.url);
+      loginUrl.searchParams.set('error', 'session_expired');
+      const response = NextResponse.redirect(loginUrl);
+      response.cookies.delete('session');
+      response.cookies.delete('session-role');
+      return response;
+    }
+  } else if (token === 'valid') {
+    // Mode transisi demo
+    const roleCookie = request.cookies.get('session-role')?.value;
+    const role = (roleCookie ? decodeURIComponent(roleCookie) : 'Mahasiswa') as JWTPayload['role'];
+    userPayload = {
+      email: 'demo@skillgap.ai',
+      name: 'Demo User',
+      role,
+    };
+  } else {
+    // Token tidak dikenal
     const loginUrl = new URL('/login', request.url);
     return NextResponse.redirect(loginUrl);
   }
 
-  const decodedRole = roleCookie ? decodeURIComponent(roleCookie) : '';
+  const role = userPayload.role;
 
-  if (isAdminRoute && decodedRole !== 'Admin') {
-    const dashboardUrl = new URL('/dashboard', request.url);
-    return NextResponse.redirect(dashboardUrl);
-  }
-
-  if (isLecturerRoute && decodedRole !== 'Dosen' && decodedRole !== 'Admin') {
+  // RBAC Server-Side Enforcement (FR-01, NFR-01)
+  if (isAdminRoute && role !== 'Admin') {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
-  if (isCounselorRoute && decodedRole !== 'Guru BK' && decodedRole !== 'Admin') {
+  if (isLecturerRoute && role !== 'Dosen' && role !== 'Admin') {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
-  if (isDashboardRoute && sessionCookie && sessionCookie !== 'valid') {
-    const loginUrl = new URL('/login', request.url);
-    return NextResponse.redirect(loginUrl);
+  if (isCounselorRoute && role !== 'Guru BK' && role !== 'Admin') {
+    return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
-  return NextResponse.next();
+  // Teruskan request dengan header data user yang sudah diverifikasi
+  const response = NextResponse.next();
+  response.headers.set('x-user-role', role);
+  response.headers.set('x-user-email', userPayload.email);
+  return response;
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/assessment/:path*', '/list/:path*', '/admin/:path*', '/lecturer/:path*', '/counselor/:path*'],
+  matcher: [
+    '/dashboard/:path*',
+    '/assessment/:path*',
+    '/list/:path*',
+    '/admin/:path*',
+    '/lecturer/:path*',
+    '/counselor/:path*',
+  ],
 };

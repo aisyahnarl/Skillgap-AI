@@ -167,7 +167,7 @@ export const authService = {
     }
   },
 
-  setSession(user: UserProfile): void {
+  setSession(user: UserProfile, token?: string): void {
     if (typeof window === 'undefined') return;
     const sessionUser = {
       name: user.name,
@@ -177,8 +177,12 @@ export const authService = {
     };
     const isSecure = typeof window !== 'undefined' && window.location.protocol === 'https:';
     const secureAttr = isSecure ? '; secure' : '';
-    document.cookie = `session=valid; path=/; max-age=86400; samesite=lax${secureAttr}`;
-    document.cookie = `session-role=${encodeURIComponent(user.role)}; path=/; max-age=86400; samesite=lax${secureAttr}`;
+    const cookieToken = token || 'valid';
+    document.cookie = `session=${encodeURIComponent(cookieToken)}; path=/; max-age=604800; samesite=lax${secureAttr}`;
+    document.cookie = `session-role=${encodeURIComponent(user.role)}; path=/; max-age=604800; samesite=lax${secureAttr}`;
+    if (token) {
+      localStorage.setItem('skillgap-token', token);
+    }
     localStorage.setItem(AUTH_KEY, JSON.stringify(sessionUser));
     localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
   },

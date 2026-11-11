@@ -26,9 +26,13 @@ import {
   deleteCompetency,
   createCompetencies,
 } from '../app/lib/competencies';
-import { hasSession, hasAdminSession } from '../app/lib/auth';
+import { hasSession, hasAdminSession, getVerifiedUser, extractTokenFromRequest } from '../app/lib/auth';
 import { useUIStore } from '../app/stores/ui-store';
 import { yieldTask, processInChunks } from '../app/lib/task-scheduler';
+import { signJWT, verifyJWT, decodeJWTPayload } from '../app/lib/jwt';
+import { extractSkillsFromText, computeCvCosineSimilarity } from '../app/lib/cv-parser';
+import { buildPromptForJenjang } from '../app/lib/llm-service';
+import { emailService } from '../app/services/email-service';
 
 describe('Barrel Export (app/services/index.ts)', () => {
   it('exports all domain services properly', () => {
@@ -857,5 +861,172 @@ describe('Service localStorage integration (Browser environment)', () => {
     };
     await yieldTask();
   });
+
+  describe('Signed JWT & RBAC Security (FR-01, NFR-01)', () => {
+    it('signs and verifies JWT token using HMAC-SHA256 signature', async () => {
+      const payload = {
+        id: 101,
+        email: 'nadia@email.com',
+        name: 'Nadia A.',
+        role: 'Mahasiswa' as const,
+        jenjang: 'Mahasiswa',
+      };
+
+      const token = await signJWT(payload);
+      expect(typeof token).toBe('string');
+      expect(token.split('.')).toHaveLength(3);
+
+      const verified = await verifyJWT(token);
+      expect(verified).not.toBeNull();
+      expect(verified?.email).toBe('nadia@email.com');
+      expect(verified?.role).toBe('Mahasiswa');
+
+      const decoded = decodeJWTPayload(token);
+      expect(decoded?.name).toBe('Nadia A.');
+    });
+
+    it('rejects tampered or malformed JWT tokens', async () => {
+      const payload = { email: 'admin@skillgap.ai', name: 'Admin', role: 'Admin' as const };
+      const token = await signJWT(payload);
+      const parts = token.split('.');
+      const tamperedToken = `${parts[0]}.${parts[1]}.badsignature123`;
+
+      const result = await verifyJWT(tamperedToken);
+      expect(result).toBeNull();
+
+      expect(await verifyJWT('not.a.valid.jwt')).toBeNull();
+      expect(await verifyJWT('')).toBeNull();
+    });
+
+    it('extracts and verifies session user from Request cookies and Authorization header', async () => {
+      const payload = {
+        id: 99,
+        email: 'admin@skillgap.ai',
+        name: 'Admin',
+        role: 'Admin' as const,
+        jenjang: 'Administrator',
+      };
+      const token = await signJWT(payload);
+
+      // 1. Dari cookie
+      const reqWithCookie = new Request('http://localhost/api/test', {
+        headers: { cookie: `session=${token}; session-role=Admin` },
+      });
+      expect(hasSession(reqWithCookie)).toBe(true);
+      expect(hasAdminSession(reqWithCookie)).toBe(true);
+      const userFromCookie = await getVerifiedUser(reqWithCookie);
+      expect(userFromCookie?.email).toBe('admin@skillgap.ai');
+
+      // 2. Dari Authorization header
+      const reqWithAuth = new Request('http://localhost/api/test', {
+        headers: { authorization: `Bearer ${token}` },
+      });
+      expect(hasSession(reqWithAuth)).toBe(true);
+      expect(hasAdminSession(reqWithAuth)).toBe(true);
+      const userFromAuth = await getVerifiedUser(reqWithAuth);
+      expect(userFromAuth?.role).toBe('Admin');
+
+      // 3. Fallback demo
+      const reqDemo = new Request('http://localhost/api/test', {
+        headers: { cookie: 'session=valid; session-role=Admin' },
+      });
+      expect(hasSession(reqDemo)).toBe(true);
+      expect(hasAdminSession(reqDemo)).toBe(true);
+      const demoUser = await getVerifiedUser(reqDemo);
+      expect(demoUser?.role).toBe('Admin');
+
+      // 4. Request tanpa sesi
+      const reqEmpty = new Request('http://localhost/api/test');
+      expect(hasSession(reqEmpty)).toBe(false);
+      expect(hasAdminSession(reqEmpty)).toBe(false);
+      expect(await getVerifiedUser(reqEmpty)).toBeNull();
+      expect(extractTokenFromRequest(reqEmpty)).toBeNull();
+    });
+  });
+
+  describe('CV NLP Skill Extraction & Cosine Similarity (FR-03.1, FR-06)', () => {
+    it('extracts technical skills and soft skills from raw CV text', () => {
+      const sampleCvText = `
+        Saya berpengalaman membangun web menggunakan React, TypeScript, Tailwind CSS, dan Next.js.
+        Saya juga mengelola database SQL PostgreSQL dan terbiasa dengan Git version control.
+        Memiliki kemampuan problem solving dan komunikasi yang baik.
+      `;
+
+      const result = extractSkillsFromText(sampleCvText);
+      expect(result.hardSkills).toContain('React');
+      expect(result.hardSkills).toContain('TypeScript');
+      expect(result.hardSkills).toContain('SQL & PostgreSQL');
+      expect(result.softSkills).toContain('Problem Solving');
+    });
+
+    it('computes calibrated Cosine Similarity between CV vector and target career', () => {
+      const skills = ['React', 'TypeScript', 'Tailwind CSS', 'JavaScript', 'Git & GitHub'];
+      const sim = computeCvCosineSimilarity(skills, 'Frontend Developer');
+      expect(sim.cosine).toBeGreaterThan(0.5);
+      expect(sim.matchScore).toBeGreaterThanOrEqual(60);
+      expect(sim.matchScore).toBeLessThanOrEqual(98);
+    });
+  });
+
+  describe('Real LLM Prompt Templates per Jenjang (FR-08)', () => {
+    it('generates customized pedagogical prompt for Pelajar SMA/SMK', () => {
+      const prompt = buildPromptForJenjang({
+        role: 'Pelajar',
+        jenjang: 'Pelajar SMA-SMK Sederajat',
+        target: 'Junior Web Developer',
+        selectedSkills: ['HTML5 & CSS3', 'JavaScript'],
+        questionnaire: { q1: 4, q2: 5 },
+        studentProfile: {
+          school: 'SMK Negeri 1',
+          major: 'RPL',
+          studentGoal: 'kuliah',
+        },
+        reportGrades: { Matematika: 88, Informatika: 92 },
+      });
+
+      expect(prompt).toContain('Konselor AI Akademik & Karier Vokasi');
+      expect(prompt).toContain('SMK Negeri 1');
+      expect(prompt).toContain('Matematika: 88');
+      expect(prompt).toContain('suggestedStudyPaths');
+    });
+
+    it('generates professional architecture prompt for Mahasiswa', () => {
+      const prompt = buildPromptForJenjang({
+        role: 'Mahasiswa',
+        jenjang: 'Mahasiswa',
+        target: 'Fullstack Engineer',
+        selectedSkills: ['Next.js', 'PostgreSQL', 'Docker'],
+        questionnaire: { q1: 5, q2: 4 },
+      });
+
+      expect(prompt).toContain('Software Architect');
+      expect(prompt).toContain('Fullstack Engineer');
+      expect(prompt).toContain('Next.js');
+    });
+  });
+
+  describe('Transactional Email Notification Service (Architecture)', () => {
+    it('sends welcome, assessment result, and counselor feedback emails', async () => {
+      const welcome = await emailService.sendWelcomeEmail({
+        name: 'Fajar Pratama',
+        email: 'fajar@pelajar.id',
+        role: 'Pelajar',
+      });
+      expect(welcome).toBe(true);
+
+      const summary = await emailService.sendAssessmentSummaryEmail(
+        { name: 'Nadia A.', email: 'nadia@email.com' },
+        { target: 'Data Scientist', matchScore: 88, skillGap: 12, certifications: ['Google Data Analytics'] }
+      );
+      expect(summary).toBe(true);
+
+      const counselor = await emailService.sendCounselorValidationEmail(
+        { name: 'Nadia A.', email: 'nadia@email.com' },
+        { validatorName: 'Dr. Hendra', validatorRole: 'Dosen', status: 'Approved', feedback: 'Bagus, lanjutkan ke fase 2.' }
+      );
+      expect(counselor).toBe(true);
+    });
+  });
 });
+
 

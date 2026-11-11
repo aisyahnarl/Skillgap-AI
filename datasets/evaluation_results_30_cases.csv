@@ -1,0 +1,31 @@
+test_id,persona,target_role,gt_score,predicted_score,score_diff,precision,recall,f1,cert_match,gt_cert,latency_ms
+TC-001,Pelajar SMK RPL,Junior Web Developer,68.0,48,20.0,0.5,0.3333333333333333,0.4,True,BNSP Junior Web Developer,0.24069999994935642
+TC-002,Pelajar SMK RPL,Frontend Developer,62.0,71,9.0,0.4,0.6666666666666666,0.5,True,Dicoding: Belajar Fundamental Front-End Web,0.11749999998755811
+TC-003,Pelajar SMK TKJ,IT Support & Network Technician,75.0,46,29.0,0.5,0.25,0.3333333333333333,True,BNSP Teknisi Jaringan Muda,0.07860000005166512
+TC-004,Mahasiswa D3 TI (Semester 2),Frontend Developer,58.0,51,7.0,0.3333333333333333,0.25,0.28571428571428575,True,Dicoding: Belajar Fundamental Front-End Web,0.07600000003549212
+TC-005,Mahasiswa D3 TI (Semester 4),Frontend Developer,78.0,71,7.0,0.4,0.4,0.4000000000000001,True,Meta Front-End Developer,0.07950000008349889
+TC-006,Mahasiswa D3 TI (Semester 4),Backend Developer,72.0,74,2.0,0.5,0.6,0.5454545454545454,True,Dicoding: Belajar Fundamental Back-End,0.08520000005773909
+TC-007,Mahasiswa D3 TI (Semester 6 / Akhir),Fullstack Developer,83.0,70,13.0,0.5,0.5,0.5,True,Meta Back-End Developer,0.07940000000417058
+TC-008,Mahasiswa S1 Sistem Informasi,Data Analyst,60.0,86,26.0,0.2,0.5,0.28571428571428575,True,Google Data Analytics,0.07379999988188501
+TC-009,Fresh Graduate TI,Data Analyst,85.0,78,7.0,0.6,0.75,0.6666666666666665,True,Microsoft PL-300: Power BI Data Analyst Associate,0.07550000009359792
+TC-010,Fresh Graduate Non-TI (Career Switcher),Data Analyst,45.0,63,18.0,0.0,0.0,0.0,True,Google Data Analytics,0.06949999988137279
+TC-011,Mahasiswa S1 TI (Semester 6),Data Scientist,74.0,68,6.0,0.5,0.5,0.5,True,Dicoding: Belajar Machine Learning,0.07339999979194545
+TC-012,Fresh Graduate TI,Machine Learning Engineer,70.0,48,22.0,0.0,0.0,0.0,False,TensorFlow Developer Certificate,0.07230000005620241
+TC-013,Mahasiswa D3 TI (Semester 4),UI/UX Designer,73.0,46,27.0,0.5,0.25,0.3333333333333333,True,Google UX Design Professional Certificate,0.07329999993999081
+TC-014,Pelajar SMK Multimedia/DKV,UI/UX Designer,55.0,51,4.0,0.5,0.5,0.5,True,Google UX Design Professional Certificate,0.06940000002941815
+TC-015,Mahasiswa D3 TI (Semester 5),Mobile Application Developer,76.0,48,28.0,0.0,0.0,0.0,True,Google Associate Android Developer,0.07080000000314612
+TC-016,Mahasiswa S1 TI,Cloud DevOps Engineer,66.0,58,8.0,0.3333333333333333,0.3333333333333333,0.3333333333333333,True,AWS Certified Solutions Architect Associate,0.07040000014058023
+TC-017,Fresh Graduate TI,Cloud DevOps Engineer,80.0,78,2.0,0.4,0.5,0.4444444444444445,True,AWS Certified Solutions Architect Associate,0.07699999991928053
+TC-018,Mahasiswa D3 TI (Semester 5),Cyber Security Analyst,64.0,40,24.0,0.0,0.0,0.0,True,Google Cybersecurity Professional Certificate,0.06929999995008984
+TC-019,Mahasiswa S1 Sistem Informasi,QA / Software Test Engineer,65.0,40,25.0,0.0,0.0,0.0,False,ISTQB Certified Tester Foundation Level,0.07189999996626284
+TC-020,Pelajar SMK RPL,Database Administrator,63.0,63,0.0,0.3333333333333333,0.5,0.4,True,BNSP Junior Web Developer,0.07080000000314612
+TC-021,Mahasiswa D3 TI (Semester 3),AI Engineer (Gen AI & LLM),60.0,48,12.0,0.5,0.3333333333333333,0.4,True,Microsoft Certified: Azure AI Engineer,0.07099999993442907
+TC-022,Fresh Graduate Non-TI,Frontend Developer,50.0,68,18.0,0.25,0.3333333333333333,0.28571428571428575,True,Dicoding: Belajar Fundamental Front-End Web,0.07210000012491946
+TC-023,Mahasiswa D3 TI (Semester 6),Backend Developer,84.0,63,21.0,0.5,0.4,0.4444444444444445,True,AWS Cloud Practitioner,0.07729999992989178
+TC-024,Pelajar SMK TKJ,IoT & Embedded Systems Engineer,70.0,40,30.0,0.0,0.0,0.0,True,BNSP Teknisi Jaringan Muda,0.06899999993947858
+TC-025,Mahasiswa S1 TI (Semester 8),Product Manager (Tech),72.0,51,21.0,0.0,0.0,0.0,True,Google Project Management,0.06950000010874646
+TC-026,Fresh Graduate TI,Fullstack Developer,81.0,80,1.0,0.3333333333333333,0.4,0.3636363636363636,True,Meta Front-End Developer,0.07709999999860884
+TC-027,Mahasiswa D3 TI (Semester 2),Backend Developer,48.0,63,15.0,0.3333333333333333,0.5,0.4,True,Dicoding: Belajar Dasar Pemrograman Web,0.07069999992381781
+TC-028,Pelajar SMK RPL,Frontend Developer,65.0,63,2.0,0.0,0.0,0.0,True,Dicoding: Belajar Fundamental Front-End Web,0.07290000007742492
+TC-029,Mahasiswa S1 TI (Semester 4),Business Intelligence Analyst,74.0,58,16.0,0.6666666666666666,0.6666666666666666,0.6666666666666666,True,Microsoft PL-300: Power BI Data Analyst Associate,0.07230000005620241
+TC-030,Fresh Graduate TI,Cyber Security Analyst,79.0,40,39.0,0.0,0.0,0.0,True,Google Cybersecurity Professional Certificate,0.0691000000188069

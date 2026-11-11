@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { listCompetencies, type Competency } from '../../lib/competencies';
 import { hasSession } from '../../lib/auth';
+import { callRealLLM } from '../../lib/llm-service';
 
 const recommendationInputSchema = z.object({
   role: z.string().min(1),
@@ -10,6 +11,16 @@ const recommendationInputSchema = z.object({
   selectedSkills: z.array(z.string()).min(1),
   questionnaire: z.record(z.string(), z.number().min(1).max(5)),
   skillLevels: z.record(z.string(), z.enum(['Beginner', 'Basic', 'Intermediate', 'Advanced', 'Expert'])).optional(),
+  studentProfile: z.object({
+    school: z.string().optional(),
+    major: z.string().optional(),
+    aspiration: z.string().optional(),
+    interests: z.string().optional(),
+    studentGoal: z.enum(['kuliah', 'kerja']).optional(),
+  }).optional(),
+  reportGrades: z.record(z.string(), z.number()).optional(),
+  extractedCvText: z.string().optional(),
+  uploadedCv: z.string().optional(),
 });
 
 // ============================================================
@@ -96,7 +107,7 @@ function cosineSimilarity(vectorU: number[], vectorR: number[]): number {
   const dotProduct = vectorU.reduce((sum, val, i) => sum + val * (vectorR[i] ?? 0), 0);
   const normU = Math.sqrt(vectorU.reduce((sum, val) => sum + val * val, 0));
   const normR = Math.sqrt(vectorR.reduce((sum, val) => sum + val * val, 0));
-  if (normU === 0 || normR === 0) return 0.50; // fallback default bila vektor ortogonal kosong
+  if (normU === 0 || normR === 0) return 0.50;
   return dotProduct / (normU * normR);
 }
 
@@ -110,7 +121,7 @@ function computeMatchScore(
 ): number {
   const values = Object.values(questionnaire);
   const qAvg = values.length ? values.reduce((sum, v) => sum + v, 0) / values.length : 3.5;
-  const qFactor = (qAvg - 3.0) * 2.5; // penyesuaian halus berbasis kesiapan belajar kuesioner [-5, +5]
+  const qFactor = (qAvg - 3.0) * 2.5;
   const calibrated = 68.7962 * cosine + 28.4832 + qFactor;
   return Math.round(Math.max(45, Math.min(98, calibrated)));
 }
@@ -138,10 +149,14 @@ const certificationCatalog: Record<string, { provider: string; description: stri
 // MAIN API HANDLER
 // ============================================================
 export async function POST(request: Request) {
-  if (!hasSession(request)) return NextResponse.json({ success: false, message: 'Session required.' }, { status: 401 });
+  if (!hasSession(request)) {
+    return NextResponse.json({ success: false, message: 'Session required.' }, { status: 401 });
+  }
+
   try {
-    const input = recommendationInputSchema.parse(await request.json());
-    const isStudentPath = input.jenjang.includes('Pelajar');
+    const rawBody = await request.json();
+    const input = recommendationInputSchema.parse(rawBody);
+    const isStudentPath = input.jenjang.toLowerCase().includes('pelajar') || input.role.toLowerCase() === 'pelajar';
     const competencies = listCompetencies();
 
     // 1. Bangun vektor profil user (u) dan vektor kebutuhan industri (r)
@@ -170,7 +185,14 @@ export async function POST(request: Request) {
       const levelScore = Math.round((LEVEL_SCORE[level] ?? 0.35) * 100);
       const required = Math.max(60, competency.bobot_permintaan);
       const gap = Math.max(0, required - levelScore);
-      return { skill: competency.nama_skill, category: competency.kategori, current: levelScore, required, gap, status: gap >= 25 ? 'Gap' : gap > 0 ? 'Developing' : 'Strong' };
+      return {
+        skill: competency.nama_skill,
+        category: competency.kategori,
+        current: levelScore,
+        required,
+        gap,
+        status: gap >= 25 ? 'Gap' : gap > 0 ? 'Developing' : 'Strong'
+      };
     });
 
     // 6. Rekomendasi sertifikasi berbobot berdasarkan gap terbesar
@@ -179,9 +201,99 @@ export async function POST(request: Request) {
         const detail = certificationCatalog[name];
         const relatedGap = skillAnalysis.find((item) => item.skill === competency.nama_skill)?.gap ?? skillGap;
         const match = Math.max(70, Math.min(98, 100 - relatedGap + Math.round(competency.bobot_permintaan / 20)));
-        return { name, ...(detail ?? { provider: 'SkillGap competency catalog', description: 'Detail resmi belum tersedia.', targetLevel: competency.level, duration: 'Belum ditentukan', officialUrl: null, prerequisites: 'Belum ditentukan.' }), relatedSkills: [competency.nama_skill], match, priority: relatedGap >= 25 ? 'High' : 'Medium', relatedGap, reason: `Direkomendasikan karena membantu menutup skill gap ${competency.nama_skill} sebesar ${relatedGap}%.` };
+        return {
+          name,
+          ...(detail ?? {
+            provider: 'SkillGap competency catalog',
+            description: 'Detail resmi belum tersedia.',
+            targetLevel: competency.level,
+            duration: 'Belum ditentukan',
+            officialUrl: null,
+            prerequisites: 'Belum ditentukan.'
+          }),
+          relatedSkills: [competency.nama_skill],
+          match,
+          priority: relatedGap >= 25 ? 'High' : 'Medium',
+          relatedGap,
+          reason: `Direkomendasikan karena membantu menutup skill gap ${competency.nama_skill} sebesar ${relatedGap}%.`
+        };
       }))
       .slice(0, 3);
+
+    // 7. Panggilan LLM API Sungguhan dengan Template Prompt per Jenjang (FR-08)
+    const llmResult = await callRealLLM({
+      role: input.role,
+      jenjang: input.jenjang,
+      target: input.target,
+      selectedSkills: input.selectedSkills,
+      questionnaire: input.questionnaire,
+      skillLevels: input.skillLevels,
+      studentProfile: input.studentProfile,
+      reportGrades: input.reportGrades,
+      extractedCvText: input.extractedCvText,
+    });
+
+    // Roadmap terintegrasi (mengutamakan hasil penalaran LLM jika ada)
+    const roadmap = llmResult?.roadmap && llmResult.roadmap.length > 0
+      ? llmResult.roadmap
+      : [
+          {
+            phase: 'PHASE 1',
+            title: isStudentPath ? `Fondasi Pemrograman & Logika (${input.target})` : `Fondasi Arsitektur ${input.target}`,
+            goal: isStudentPath ? 'Memperkuat logika berpikir komputasional dan dasar web/algoritma' : `Tingkatkan kompetensi inti untuk ${input.target}`,
+            duration: '4 minggu',
+            skills: input.selectedSkills,
+            resources: ['Kurikulum dasar dan latihan interaktif'],
+            certification: certifications[0]?.name ?? 'Belum ditentukan',
+            project: `${input.target} case study`,
+            status: 'Not Started' as const,
+            tasks: ['Konsep dasar & sintaks', 'Latihan terarah', 'Evaluasi mandiri']
+          },
+          {
+            phase: 'PHASE 2',
+            title: isStudentPath ? 'Latihan Terarah & Proyek Sekolah' : 'Implementasi Proyek Industri Praktis',
+            goal: isStudentPath ? 'Membuat portofolio aplikasi mini untuk persiapan magang/studi' : 'Mengerjakan studi kasus industri dengan clean code & database',
+            duration: '6 minggu',
+            skills: skillAnalysis.filter((item) => item.gap > 0).map((item) => item.skill),
+            resources: ['Dokumentasi resmi', 'Project-based learning'],
+            certification: certifications[1]?.name ?? 'Belum ditentukan',
+            project: 'Portfolio mini project',
+            status: 'Not Started' as const,
+            tasks: ['Desain sistem', 'Pengembangan fitur', 'Refining code']
+          },
+          {
+            phase: 'PHASE 3',
+            title: isStudentPath ? 'Validasi Kejuruan & Portofolio Akhir' : 'Validasi Sertifikasi & Kesiapan Rekrutmen',
+            goal: isStudentPath ? 'Mempersiapkan portofolio kelulusan/SNBP atau UKK' : 'Mengambil sertifikasi industri kredibel dan mock interview',
+            duration: '5 minggu',
+            skills: skillAnalysis.map((item) => item.skill),
+            resources: ['Practice test dan review'],
+            certification: certifications[2]?.name ?? 'Belum ditentukan',
+            project: 'Final case study',
+            status: 'Not Started' as const,
+            tasks: ['Review gap', 'Simulasi asesmen', 'Finalisasi portofolio']
+          },
+        ];
+
+    const strengths = llmResult?.strengths ?? (
+      isStudentPath
+        ? ['Peta minat dan bakat berhasil dipetakan', 'Potensi belajar lintas bidang terbuka lebar', 'Minat teknologi sejalan dengan pilihan program studi']
+        : ['Kompetensi prioritas telah teridentifikasi', 'Profil sesuai dengan target industri', 'Kesiapan belajar dapat ditingkatkan']
+    );
+
+    const gaps = llmResult?.gaps ?? (
+      matchingCompetencies.length
+        ? matchingCompetencies.slice(0, 3).map((competency) => `Perlu penguatan ${competency.name} level ${competency.level}`)
+        : [`Perlu penguatan kompetensi inti untuk ${input.target}`, 'Perlu membangun portofolio yang relevan', 'Perlu validasi melalui proyek atau sertifikasi']
+    );
+
+    const studyPaths = isStudentPath
+      ? (llmResult?.suggestedStudyPaths ?? [
+          { title: 'Sistem Informasi', jenjang: 'Sarjana (S1)', match: Math.min(98, matchScore + 2), description: 'Mempelajari integrasi teknologi informasi, analisis proses bisnis, dan database.', careers: ['Business Analyst', 'Systems Analyst', 'IT Consultant'] },
+          { title: 'Informatika', jenjang: 'Sarjana (S1)', match: matchScore, description: 'Fokus pada rekayasa perangkat lunak, struktur data, kecerdasan buatan, dan algoritma.', careers: ['Software Engineer', 'Data Scientist', 'AI Engineer'] },
+          { title: 'Teknologi Informasi', jenjang: 'Diploma / Sarjana Terapan (D3/D4)', match: Math.max(70, matchScore - 3), description: 'Penerapan infrastruktur jaringan, sistem komputasi terapan, dan administrasi database.', careers: ['Cloud Administrator', 'Network Engineer', 'Full-stack Web Dev'] },
+        ])
+      : undefined;
 
     return NextResponse.json({
       success: true,
@@ -191,24 +303,21 @@ export async function POST(request: Request) {
         skillGap,
         _cosineSimilarity: Math.round(cosine * 10000) / 10000,
         skillAnalysis,
-        strengths: isStudentPath
-          ? ['Peta minat dan bakat berhasil dipetakan', 'Potensi belajar lintas bidang', 'Target studi dapat dikembangkan']
-          : ['Kompetensi prioritas telah teridentifikasi', 'Profil sesuai dengan target industri', 'Kesiapan belajar dapat ditingkatkan'],
-        gaps: matchingCompetencies.length
-          ? matchingCompetencies.slice(0, 3).map((competency) => `Perlu penguatan ${competency.name} level ${competency.level}`)
-          : [`Perlu penguatan kompetensi inti untuk ${input.target}`, 'Perlu membangun portofolio yang relevan', 'Perlu validasi melalui proyek atau sertifikasi'],
-        roadmap: [
-          { phase: 'PHASE 1', title: `Fondasi ${input.target}`, goal: `Tingkatkan skill gap prioritas untuk ${input.target}`, duration: '4 minggu', skills: input.selectedSkills, resources: ['Kurikulum dasar dan latihan terstruktur'], certification: certifications[0]?.name ?? 'Belum ditentukan', project: `${input.target} case study`, status: 'Not Started', tasks: ['Konsep dasar', 'Latihan terarah', 'Refleksi hasil'] },
-          { phase: 'PHASE 2', title: 'Latihan terarah', goal: 'Mengerjakan latihan dan proyek kecil yang dapat diukur', duration: '6 minggu', skills: skillAnalysis.filter((item) => item.gap > 0).map((item) => item.skill), resources: ['Dokumentasi resmi', 'Project-based learning'], certification: certifications[1]?.name ?? 'Belum ditentukan', project: 'Portfolio mini project', status: 'Not Started', tasks: ['Buat project', 'Minta feedback', 'Publikasikan hasil'] },
-          { phase: 'PHASE 3', title: 'Validasi kompetensi', goal: 'Menggunakan sertifikasi atau portofolio sebagai bukti', duration: '5 minggu', skills: skillAnalysis.map((item) => item.skill), resources: ['Practice test dan review'], certification: certifications[2]?.name ?? 'Belum ditentukan', project: 'Final case study', status: 'Not Started', tasks: ['Review gap', 'Simulasi assessment', 'Finalisasi bukti'] },
-        ],
+        strengths,
+        gaps,
+        roadmap,
         certifications,
+        studyPaths,
+        aiNarrative: llmResult?.aiNarrative ?? `Analisis AI menunjukkan tingkat kesesuaian Anda sebesar ${matchScore}% terhadap target peran ${input.target}. Roadmap pembelajaran telah dipersonalisasi sesuai jenjang ${input.jenjang}.`,
         jobOpenings: isStudentPath
           ? [{ title: 'Jalur studi lanjut', fit: `Pilihan studi yang selaras dengan ${input.target}`, match: matchScore, salary: 'Target pendidikan' }]
           : [{ title: input.target, fit: `Role awal berdasarkan skill ${input.selectedSkills.join(', ')}`, match: matchScore, salary: 'Sesuaikan dengan pasar kerja' }],
       },
     });
-  } catch {
+  } catch (error: any) {
+    if (error?.name !== 'ZodError') {
+      console.error('[Recommendations API Error]:', error);
+    }
     return NextResponse.json({ success: false, message: 'Input assessment tidak valid.' }, { status: 400 });
   }
 }

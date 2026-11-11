@@ -33,13 +33,22 @@ export default function LoginPage() {
     setMessage('');
 
     try {
-      // Mengirim data login ke backend FastAPI
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
-      const res = await fetch(`${apiUrl}/api/login`, {
+      // 1. Coba login ke API Next.js Route Handler (/api/login) yang menerbitkan Signed JWT
+      let res = await fetch('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: form.email, password: form.password }),
       });
+
+      // 2. Jika 404 atau gagal, coba ke backend FastAPI port 8000
+      if (!res.ok && res.status === 404) {
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+        res = await fetch(`${apiUrl}/api/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: form.email, password: form.password }),
+        });
+      }
 
       const data = await res.json();
 
@@ -48,6 +57,7 @@ export default function LoginPage() {
         const localUser = authService.login(form.email, form.password);
         if (localUser) {
           const role = localUser.role || 'Mahasiswa';
+          authService.setSession(localUser);
           setMessage(`Login berhasil sebagai ${role}. Mengarahkan ke workspace...`);
           setTimeout(() => {
             if (role === 'Admin') router.push('/admin');
@@ -58,18 +68,18 @@ export default function LoginPage() {
           return;
         }
 
-        setError(data.detail || 'Email atau password salah.');
+        setError(data.message || data.detail || 'Email atau password salah.');
         setIsLoading(false);
         return;
       }
 
-      // Jika berhasil dari FastAPI
+      // Jika berhasil dari API (dengan Signed JWT Token)
       const role = data.user.role || 'Mahasiswa';
       
       authService.setSession({
         ...data.user,
         role,
-      });
+      }, data.token);
 
       setMessage(`Login berhasil sebagai ${role}. Mengarahkan ke workspace...`);
 

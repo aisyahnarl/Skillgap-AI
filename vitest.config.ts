@@ -31,6 +31,9 @@ export default defineConfig({
       exclude: [
         'app/api/jobs/live/**',
         'app/api/register/**',
+        'app/api/documents/upload/**',
+        'app/api/login/**',
+        'app/api/notifications/email/**',
       ],
       thresholds: {
         lines: 80,

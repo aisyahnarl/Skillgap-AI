@@ -47,8 +47,7 @@ export default function RegisterPage() {
     setError('');
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
-      const res = await fetch(`${apiUrl}/api/register`, {
+      let res = await fetch('/api/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -64,6 +63,26 @@ export default function RegisterPage() {
           parentalConsent: isUnder18 ? parentalConsent : undefined,
         }),
       });
+
+      if (!res.ok && res.status === 404) {
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+        res = await fetch(`${apiUrl}/api/register`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            name: form.name,
+            email: form.email.toLowerCase(),
+            password: form.password,
+            role: form.role,
+            jenjang: form.jenjang,
+            birthDate: form.birthDate || undefined,
+            age: age,
+            parentalConsent: isUnder18 ? parentalConsent : undefined,
+          }),
+        });
+      }
 
       const data = await res.json();
 

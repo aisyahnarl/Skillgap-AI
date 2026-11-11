@@ -240,6 +240,10 @@ export default function AssessmentForm() {
   const [studentProfile, setStudentProfile] = useState({ school: '', major: '', interests: '', activities: '', aspiration: '', story: '', birthDate: '', consent: false });
   const [reportGrades, setReportGrades] = useState({ Matematika: '', 'Bahasa Indonesia': '', 'Bahasa Inggris': '', Informatika: '', Fisika: '', IPA: '' });
   const [error, setError] = useState<string | null>(null);
+  const [isUploadingCv, setIsUploadingCv] = useState(false);
+  const [cvExtractionSuccess, setCvExtractionSuccess] = useState<string | null>(null);
+  const [extractedCvText, setExtractedCvText] = useState('');
+  const [cvFileUrl, setCvFileUrl] = useState('');
   // ── State baru: tujuan pelajar SMA/SMK ──────────────────────────────────
   const [studentGoal, setStudentGoal] = useState<'kuliah' | 'kerja' | ''>('');
   const [itJobInterest, setItJobInterest] = useState(''); // bidang IT yang diminati (untuk jalur kerja)
@@ -338,6 +342,38 @@ export default function AssessmentForm() {
     setUploadedCvSize(file.size);
     setUploadedCvType(fileType);
     setError(null);
+    setCvExtractionSuccess(null);
+
+    // Unggah dan simpan berkas CV ke server storage serta ekstraksi NLP (FR-03, FR-03.1, FR-06)
+    setIsUploadingCv(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('targetRole', form.target || 'Software Engineer');
+
+    fetch('/api/documents/upload', {
+      method: 'POST',
+      body: formData,
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        setIsUploadingCv(false);
+        if (data.success && data.data) {
+          setCvFileUrl(data.data.fileUrl);
+          setExtractedCvText(data.data.extractedText || '');
+          const newSkills = data.data.extractedSkills || [];
+          if (newSkills.length > 0) {
+            setSelectedSkills((prev) => Array.from(new Set([...prev, ...newSkills])));
+            setCvExtractionSuccess(`AI berhasil mengekstrak ${newSkills.length} skill dari ${file.name}: ${newSkills.slice(0, 5).join(', ')}`);
+          } else {
+            setCvExtractionSuccess(`File ${file.name} berhasil disimpan di storage server.`);
+          }
+        }
+      })
+      .catch((err) => {
+        setIsUploadingCv(false);
+        console.warn('Gagal upload server:', err);
+      });
+
     localStorage.setItem(
       'skillgap-cv',
       JSON.stringify({
@@ -398,6 +434,10 @@ export default function AssessmentForm() {
           selectedSkills,
           questionnaire,
           skillLevels: skillLevelsByName,
+          studentProfile: isPelajar ? studentProfile : undefined,
+          reportGrades: isPelajar ? reportGrades : undefined,
+          extractedCvText: extractedCvText || undefined,
+          uploadedCv: uploadedCv || undefined,
         }),
       });
       if (!response.ok) throw new Error('Recommendation API failed');
@@ -528,6 +568,18 @@ export default function AssessmentForm() {
                 <span key={t.ext} className="rounded-md bg-slate-100 px-2 py-1 font-semibold text-slate-600">{t.label}</span>
               ))}
             </div>
+
+                        {isUploadingCv && (
+              <div className="mt-3 flex items-center gap-2 rounded-2xl bg-indigo-50 border border-indigo-200 p-3 text-xs font-semibold text-indigo-700 animate-pulse">
+                <span className="inline-block h-3 w-3 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin" />
+                Sedang memproses berkas ke storage server & mengekstraksi teks CV menggunakan AI NLP...
+              </div>
+            )}
+            {cvExtractionSuccess && (
+              <div className="mt-3 rounded-2xl bg-emerald-50 border border-emerald-200 p-3 text-xs font-medium text-emerald-800">
+                ✨ {cvExtractionSuccess}
+              </div>
+            )}
 
             <div className="mt-4 rounded-2xl border border-indigo-100 bg-indigo-50/70 p-4 text-sm text-indigo-700">
               {uploadedCv
